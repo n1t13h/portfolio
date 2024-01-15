@@ -10,7 +10,7 @@ type ItemCardProps = {
   url?: string;
   tags?: string[];
 };
-const ItemCard = ({ title, description, image, url, tags }: ItemCardProps) => {
+const ItemCard = ({ title, description, url, tags }: ItemCardProps) => {
   const controls = useAnimation();
   const [ref, inView] = useInView();
   useEffect(() => {

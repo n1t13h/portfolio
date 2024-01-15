@@ -25,13 +25,10 @@ body {
 }
 .hero-main {
   margin-top: 10em;
-  display: flex-start;
+  display: flex;
+  align-items: flex-start;
   justify-content: center;
   flex-direction: column;
-}
-.sticky-hero {
-  position: sticky;
-  top: 0;
 }
 
 .scrollable-cards {

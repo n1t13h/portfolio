@@ -1,11 +1,8 @@
-import { useEffect, useState } from "preact/hooks";
 import "./app.css";
-import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import ItemCard from "./components/ItemCard";
-import { motion, useAnimation, useScroll, useSpring } from "framer-motion";
+import { motion } from "framer-motion";
 
-import { useInView } from "react-intersection-observer";
 import { projects } from "./data/projects";
 import { blogs } from "./data/blogs";
 

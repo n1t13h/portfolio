@@ -1,9 +1,9 @@
-import { useState } from "preact/hooks";
 import preactLogo from "../assets/final.png";
-import { motion, useAnimation, useScroll, useSpring } from "framer-motion";
+import { motion } from "framer-motion";
 import { FaSquareXTwitter } from "react-icons/fa6";
 import { FaGithubSquare } from "react-icons/fa";
 import { FaLinkedin } from "react-icons/fa";
+import { IconContext } from "react-icons";
 
 const startDate = new Date("2021-07-01T00:00:00");
 const currentDate = new Date();
@@ -75,7 +75,13 @@ const Hero = () => {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <FaSquareXTwitter className="social-link" />
+            <IconContext.Provider
+              value={{
+                className: "social-link",
+              }}
+            >
+              <FaSquareXTwitter />
+            </IconContext.Provider>
           </a>
           <a
             href="
@@ -83,7 +89,13 @@ const Hero = () => {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <FaGithubSquare className="social-link" />
+            <IconContext.Provider
+              value={{
+                className: "social-link",
+              }}
+            >
+              <FaGithubSquare />
+            </IconContext.Provider>
           </a>
           <a
             href="
@@ -91,7 +103,13 @@ const Hero = () => {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <FaLinkedin className="social-link" />
+            <IconContext.Provider
+              value={{
+                className: "social-link",
+              }}
+            >
+              <FaLinkedin />
+            </IconContext.Provider>
           </a>
         </div>
       </motion.div>
