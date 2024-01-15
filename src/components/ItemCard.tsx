@@ -10,14 +10,17 @@ type ItemCardProps = {
   url?: string;
   tags?: string[];
 };
+
 const ItemCard = ({ title, description, url, tags }: ItemCardProps) => {
   const controls = useAnimation();
   const [ref, inView] = useInView();
+
   useEffect(() => {
     if (inView) {
       controls.start("visible");
     }
   }, [controls, inView]);
+
   return (
     <motion.div
       ref={ref as any}
@@ -29,15 +32,20 @@ const ItemCard = ({ title, description, url, tags }: ItemCardProps) => {
         hidden: { opacity: 0, scale: 0 },
       }}
     >
-      <div class="item-card flex flex-col bg-white border border-t-4 border-t-orange-600 shadow-sm rounded-xl dark:bg-slate-900 dark:border-gray-700 dark:border-t-blue-500 dark:shadow-slate-700/[.7]">
-        <div class="p-4 md:p-5">
-          <h3 class="text-lg font-bold text-gray-800 dark:text-white">
+      <div className="item-card flex flex-col bg-white border border-t-4 border-t-orange-500 shadow-sm rounded-xl dark:bg-slate-900 dark:border-gray-700 dark:border-t-secondary-500 dark:shadow-slate-700/[.7]">
+        <div className="p-4 md:p-5">
+          <h3 className="text-lg font-bold text-gray-800 dark:text-white">
             {title}
           </h3>
-          <p class="mt-2 text-gray-500 dark:text-gray-400">{description}</p>
+          <p className="mt-2 text-gray-500 dark:text-gray-400">{description}</p>
           {/* Render HashTags */}
-          <div class="flex flex-wrap mt-4">
-            {tags && tags.map((tag) => <span class="tag">#{tag}</span>)}
+          <div className="flex flex-wrap mt-4">
+            {tags &&
+              tags.map((tag, index) => (
+                <span key={index} className="tag">
+                  #{tag}
+                </span>
+              ))}
           </div>
           {url && (
             <a

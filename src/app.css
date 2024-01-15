@@ -30,7 +30,6 @@ body {
   justify-content: center;
   flex-direction: column;
 }
-
 .scrollable-cards {
   margin-top: 5em;
 }
@@ -48,7 +47,7 @@ body {
   background-color: #323031;
   padding: 0.5em;
   border-radius: 0.5em;
-  margin-right: 0.5em;
+  margin: 0.1em 0.5em 0.1em 0;
 }
 
 .footer {
@@ -73,5 +72,38 @@ body {
 }
 
 .social-link:hover {
-  color:#ed6337;
+  color: #ed6337;
 }
+
+/* Handle .hero-main for mobile size */
+@media (max-width: 768px) {
+  .hero-main {
+    margin-top: 3em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+  .hero-description {
+    font-family: "Urbanist", sans-serif;
+    font-weight: 400;
+    width: 100%;
+    margin-top: 1em;
+    text-transform: capitalize;
+    text-align: justify;
+  }
+  .hero-title {
+    font-family: "Urbanist", sans-serif;
+    font-weight: 500;
+    text-align: center;
+  }
+  .hero-name{
+    font-family: "Syncopate", sans-serif;
+    text-align: center;
+  }
+  .scrollable-cards{
+    margin-left: 1em;
+    margin-right: 1em;
+  }
+}
+

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { FaSquareXTwitter } from "react-icons/fa6";
 import { FaGithubSquare } from "react-icons/fa";
 import { FaLinkedin } from "react-icons/fa";
+import { SiGmail } from "react-icons/si";
 import { IconContext } from "react-icons";
 
 const startDate = new Date("2021-07-01T00:00:00");
@@ -109,6 +110,19 @@ const Hero = () => {
               }}
             >
               <FaLinkedin />
+            </IconContext.Provider>
+          </a>
+          <a
+            href="mailto:nitishp.dev@gmail.com?subject=Contacting%20you%20for%20%3A%20%3CYour%20Reason%20Here%3E"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <IconContext.Provider
+              value={{
+                className: "social-link",
+              }}
+            >
+              <SiGmail />
             </IconContext.Provider>
           </a>
         </div>
