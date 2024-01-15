@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 
 import { projects } from "./data/projects";
 import { blogs } from "./data/blogs";
-import Navbar from "./components/Navbar";
 
 export function App() {
   return (
@@ -45,9 +44,7 @@ export function App() {
           </div>
         </div>
         <div className="footer">
-          <p className="text-center text-gray-500">
-            Made with 🧡 by Nitish Patel
-          </p>
+          <p className="text-center text-gray-500">Made with 🧡</p>
         </div>
       </div>
     </div>

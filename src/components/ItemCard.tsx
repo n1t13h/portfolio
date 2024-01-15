@@ -32,7 +32,7 @@ const ItemCard = ({ title, description, url, tags }: ItemCardProps) => {
         hidden: { opacity: 0, scale: 0 },
       }}
     >
-      <div className="item-card flex flex-col bg-white border border-t-4 border-t-orange-500 shadow-sm rounded-xl dark:bg-slate-900 dark:border-gray-700 dark:border-t-secondary-500 dark:shadow-slate-700/[.7]">
+      <div className="item-card flex flex-col bg-white border border-t-4 border-t-orange-500 shadow-sm rounded-xl dark:bg-slate-900 dark:border-gray-700 dark:border-t-orange-500 dark:shadow-slate-700/[.7]">
         <div className="p-4 md:p-5">
           <h3 className="text-lg font-bold text-gray-800 dark:text-white">
             {title}
