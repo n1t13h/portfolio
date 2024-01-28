@@ -3,7 +3,8 @@ import { motion } from "framer-motion";
 import { FaSquareXTwitter } from "react-icons/fa6";
 import { FaGithubSquare } from "react-icons/fa";
 import { FaLinkedin } from "react-icons/fa";
-import { SiGmail } from "react-icons/si";
+import { SiGooglemessages } from "react-icons/si";
+
 import { IconContext } from "react-icons";
 
 const startDate = new Date("2021-07-01T00:00:00");
@@ -113,7 +114,8 @@ const Hero = () => {
             </IconContext.Provider>
           </a>
           <a
-            href="mailto:nitishp.dev@gmail.com?subject=Contacting%20you%20for%20%3A%20%3CYour%20Reason%20Here%3E"
+            href="
+            https://topmate.io/ntshptl"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -122,7 +124,7 @@ const Hero = () => {
                 className: "social-link",
               }}
             >
-              <SiGmail />
+              <SiGooglemessages />
             </IconContext.Provider>
           </a>
         </div>
