@@ -3,6 +3,33 @@
 body {
   font-family: "Urbanist", sans-serif;
 }
+body {
+  --sb-track-color: #232e33;
+  --sb-thumb-color: #ed6337;
+  --sb-size: 6px;
+}
+
+body::-webkit-scrollbar {
+  width: var(--sb-size)
+}
+
+body::-webkit-scrollbar-track {
+  background: var(--sb-track-color);
+  border-radius: 10px;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: var(--sb-thumb-color);
+  border-radius: 10px;
+  
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  body {
+    scrollbar-color: var(--sb-thumb-color)
+                     var(--sb-track-color);
+  }
+}
 .hero-name {
   font-family: "Syncopate", sans-serif;
 }
@@ -106,4 +133,3 @@ body {
     margin-right: 1em;
   }
 }
-
