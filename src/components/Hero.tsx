@@ -113,20 +113,6 @@ const Hero = () => {
               <FaLinkedin />
             </IconContext.Provider>
           </a>
-          <a
-            href="
-            https://topmate.io/ntshptl"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <IconContext.Provider
-              value={{
-                className: "social-link",
-              }}
-            >
-              <SiGooglemessages />
-            </IconContext.Provider>
-          </a>
         </div>
       </motion.div>
     </motion.div>

@@ -46,18 +46,6 @@ export function App() {
         <div className="footer">
           <p className="text-center text-gray-500">Made with 🧡</p>
         </div>
-        <script
-          src="https://topmate-embed.s3.ap-south-1.amazonaws.com/v1/topmate-embed.js"
-          user-profile="https://topmate.io/embed/profile/ntshptl?theme=D5534D"
-          btn-style='{"backgroundColor":"#ed6337","color":"#fff"}'
-          embed-version="v1"
-          button-text="Let's Connect"
-          position-bottom="30px"
-          custom-padding="0px"
-          custom-font-size="16px"
-          custom-font-weight="500"
-          custom-width="200px"
-        ></script>
       </div>
     </div>
   );
