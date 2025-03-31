@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion } from "framer-motion"; // added framer-motion
 import BrowserFrame from "@/components/BrowserFrame";
 import BentoGrid from "@/components/BentoGrid";
 import BentoItem from "@/components/BentoItem";
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Share2, Github, Linkedin, FileText } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import profilePhoto from "@/assets/final.png";
+import businessCard from "@/assets/card.png"; // Assuming you have a business card image
 
 const Index: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -18,19 +20,51 @@ const Index: React.FC = () => {
   const handleShareBusinessCard = async () => {
     setIsGenerating(true);
     try {
-      // In a real app, this would use html-to-image or similar
-      // For now, we'll simulate the generation
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Wait to simulate some async generation (if needed)
 
-      toast({
-        title: "Business card generated!",
-        description:
-          "Your business card has been copied to clipboard and can be shared.",
-      });
+      const response = await fetch(businessCard);
+      const blob = await response.blob();
+      const file = new File([blob], "card.png", { type: "image/png" });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: "Nitish Patel - Full Stack Developer",
+          text: "Check out my Site https://ntshptl.in",
+          files: [file],
+        });
+
+        toast({
+          title: "Shared successfully!",
+          description: "Your business card was shared via system share dialog.",
+        });
+      } else if (navigator.share) {
+        // Fallback to text-only share
+        await navigator.share({
+          title: "Nitish Patel - Full Stack Developer",
+          text: "Check out my Site https://ntshptl.in\nMail:nitishp.dev@gmail.com",
+        });
+
+        toast({
+          title: "Shared successfully (text only)",
+          description:
+            "Business card image sharing isn't supported, but your link was shared.",
+        });
+      } else {
+        // Fallback to clipboard
+        await navigator.clipboard.writeText(
+          "Check out my Site https://ntshptl.in"
+        );
+
+        toast({
+          title: "Copied to clipboard!",
+          description:
+            "Business card sharing not supported on this device. Website link copied instead.",
+        });
+      }
     } catch (error) {
       toast({
-        title: "Error generating business card",
-        description: "Please try again later.",
+        title: "Error sharing business card",
+        description: "Please try again later or use a supported device.",
         variant: "destructive",
       });
     } finally {
@@ -39,11 +73,20 @@ const Index: React.FC = () => {
   };
 
   return (
-    <div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
       <div className="max-w-5xl mx-auto px-4 py-8">
         <header className="mb-12">
           {/* Top header: logo/email and social icons */}
-          <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+          <motion.div
+            className="flex flex-col md:flex-row justify-between items-center mb-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+          >
             <div className="flex items-center mb-4 md:mb-0">
               <div className="h-10 w-10 bg-black rounded flex items-center justify-center text-white">
                 <span>NP</span>
@@ -80,22 +123,31 @@ const Index: React.FC = () => {
                 Resume
               </a>
             </div>
-          </div>
+          </motion.div>
 
           {/* Main introduction */}
-          <div className="flex flex-col md:flex-row md:items-end mb-6">
+          <motion.div
+            className="flex flex-col md:flex-row md:items-end mb-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+          >
             <div className="flex-grow">
               <div className="flex flex-col sm:flex-row items-center mb-2">
                 <h1 className="text-3xl sm:text-4xl font-bold mr-3 text-center sm:text-left">
                   Hi, I'm
                 </h1>
-                <div className="relative">
+                <motion.div
+                  className="relative"
+                  whileHover={{ scale: 1.1 }}
+                  transition={{ duration: 0.3 }}
+                >
                   <img
                     src={profilePhoto}
                     alt="Profile"
-                    className="w-12 h-12 rounded-full object-cover transition-transform duration-300 hover:scale-125"
+                    className="w-12 h-12 rounded-full object-cover transition-transform duration-300 hover:scale-150"
                   />
-                </div>
+                </motion.div>
                 <h1 className="text-3xl sm:text-4xl font-bold ml-0 sm:ml-2 mt-2 sm:mt-0 text-center sm:text-left">
                   Nitish Patel!
                 </h1>
@@ -112,27 +164,43 @@ const Index: React.FC = () => {
                 AI, Web3, React, Django & MERN.
               </div>
 
-              <div className="inline-block bg-gray-100 rounded-full px-4 py-1.5 text-sm mb-6">
-                <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                Open to work
-              </div>
+              <motion.div
+                className="mt-6 flex justify-center md:justify-start"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.8, duration: 0.5 }}
+              >
+                <div className="inline-block bg-gray-100 rounded-full px-4 py-1.5 text-sm mb-6">
+                  <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  Open to work
+                </div>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
 
-          <p className="text-lg max-w-2xl mx-auto md:mx-0 text-center md:text-left mb-6">
-  Feel free to explore my portfolio and reach out—I'd love to connect!
-</p>
+          <motion.p
+            className="text-lg max-w-2xl mx-auto md:mx-0 text-center md:text-left mb-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+          >
+            Feel free to explore my portfolio and reach out—I'd love to connect!
+          </motion.p>
 
-
-          <div className="mt-6 flex justify-center md:justify-start">
+          <motion.div
+            className="mt-6 flex justify-center md:justify-start"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
+          >
             <Button className="bg-black hover:bg-gray-800 text-white rounded-full px-6 py-2">
               Book a call
             </Button>
-          </div>
+          </motion.div>
         </header>
 
         <BentoGrid className="mb-12">
-          <BentoItem >
+          <BentoItem>
             <Skills />
           </BentoItem>
 
@@ -153,7 +221,12 @@ const Index: React.FC = () => {
           </BentoItem>
         </BentoGrid>
 
-        <div className="mt-16 mb-8 flex justify-center">
+        <motion.div
+          className="mt-16 mb-8 flex justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1, duration: 0.5 }}
+        >
           <Button
             variant="outline"
             className="group border-dashed hover:border-solid flex items-center gap-2 rounded-full py-2 px-6"
@@ -163,9 +236,9 @@ const Index: React.FC = () => {
             <Share2 className="h-4 w-4 group-hover:rotate-12 transition-transform" />
             {isGenerating ? "Generating..." : "Share my business card"}
           </Button>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
