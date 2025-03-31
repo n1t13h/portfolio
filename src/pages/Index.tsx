@@ -114,7 +114,7 @@ const Index: React.FC = () => {
                 <Linkedin className="h-5 w-5" />
               </a>
               <a
-                href="https://drive.google.com/file/d/19l2EDXou4EldioKaLLhomuMb7NBt2XMu/view?usp=drive_link"
+                href="https://drive.google.com/file/d/1DwZGgapSsfOGgx5Je3UICvUERDH_m1k4/view?usp=sharing"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
