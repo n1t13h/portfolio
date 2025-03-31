@@ -1,135 +1,42 @@
-@import url("https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap");
-@import url("https://fonts.googleapis.com/css2?&family=Urbanist:wght@400;500;600;700;900&display=swap");
-body {
-  font-family: "Urbanist", sans-serif;
-}
-body {
-  --sb-track-color: #232e33;
-  --sb-thumb-color: #ed6337;
-  --sb-size: 6px;
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
 }
 
-body::-webkit-scrollbar {
-  width: var(--sb-size)
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
 }
 
-body::-webkit-scrollbar-track {
-  background: var(--sb-track-color);
-  border-radius: 10px;
-}
-
-body::-webkit-scrollbar-thumb {
-  background: var(--sb-thumb-color);
-  border-radius: 10px;
-  
-}
-
-@supports not selector(::-webkit-scrollbar) {
-  body {
-    scrollbar-color: var(--sb-thumb-color)
-                     var(--sb-track-color);
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
-.hero-name {
-  font-family: "Syncopate", sans-serif;
-}
-.hero-logo {
-  width: 250px;
-  height: 250px;
-  border-radius: 50%;
-}
-.hero-title {
-  font-family: "Urbanist", sans-serif;
-  font-weight: 500;
-}
-.hero-description {
-  font-family: "Urbanist", sans-serif;
-  font-weight: 400;
-  width: 80%;
-  margin-top: 1em;
-  text-transform: capitalize;
-  text-align: justify;
-}
-.hero-main {
-  margin-top: 10em;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  flex-direction: column;
-}
-.scrollable-cards {
-  margin-top: 5em;
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
 }
 
-.item-card {
-  margin-top: 1em;
-  margin-bottom: 1em;
+.card {
+  padding: 2em;
 }
 
-.tag {
-  font-family: "Urbanist", sans-serif;
-  font-weight: 600;
-  font-size: 0.8em;
-  color: #fff;
-  background-color: #323031;
-  padding: 0.5em;
-  border-radius: 0.5em;
-  margin: 0.1em 0.5em 0.1em 0;
-}
-
-.footer {
-  margin-top: 5em;
-  font-family: "Urbanist", sans-serif;
-  font-weight: 600;
-  margin-bottom: 5em;
-  display: flex;
-  justify-content: center;
-  flex-direction: column;
-  align-items: center;
-}
-.social-links {
-  margin-top: 1em;
-  display: flex;
-  flex-direction: row;
-}
-.social-link {
-  margin-right: 0.5em;
-  height: 2em;
-  width: 2em;
-}
-
-.social-link:hover {
-  color: #ed6337;
-}
-
-/* Handle .hero-main for mobile size */
-@media (max-width: 768px) {
-  .hero-main {
-    margin-top: 3em;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-  }
-  .hero-description {
-    font-family: "Urbanist", sans-serif;
-    font-weight: 400;
-    width: 100%;
-    margin-top: 1em;
-    text-transform: capitalize;
-    text-align: justify;
-  }
-  .hero-title {
-    font-family: "Urbanist", sans-serif;
-    font-weight: 500;
-    text-align: center;
-  }
-  .hero-name{
-    font-family: "Syncopate", sans-serif;
-    text-align: center;
-  }
-  .scrollable-cards{
-    margin-left: 1em;
-    margin-right: 1em;
-  }
+.read-the-docs {
+  color: #888;
 }
