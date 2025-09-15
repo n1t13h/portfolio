@@ -11,9 +11,15 @@ interface ExperienceItem {
 
 const experiences: ExperienceItem[] = [
   {
+    title: "Software Craftperson",
+    company: "Incubyte",
+    period: "Sep 2025 to present - Remote",
+    type: "Full time"
+  },
+  {
     title: "Team lead",
     company: "Yodaplus",
-    period: "Apr 2023 to present - Hybrid",
+    period: "Apr 2023 to Aug 2025 - Hybrid",
     type: "Full time"
   },
   {

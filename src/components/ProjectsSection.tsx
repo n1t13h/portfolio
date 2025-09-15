@@ -3,6 +3,12 @@ import ReactDOM from 'react-dom';
 
 const projects = [
   {
+    title: "Insurance Broker",
+    description:
+      "Created EHB Portal for an leading insurance broker in India",
+    tags: ["Insurance", "EHB", "AWS Serverless Backend"],
+  },
+  {
     title: "Document Attestation",
     description:
       "A blockchain based document attestation system built using Open Attestation",
