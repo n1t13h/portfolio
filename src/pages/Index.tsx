@@ -14,6 +14,23 @@ import { toast } from "@/components/ui/use-toast";
 import profilePhoto from "@/assets/final.png";
 import businessCard from "@/assets/card.png"; // Assuming you have a business card image
 
+const CallButton = ()=> {
+  const handleClick = () => {
+    (window as any).Calendly.initPopupWidget({
+      url: "https://calendly.com/nitishp74/30min",
+    });
+  };
+
+  return (
+    <Button
+      onClick={handleClick}
+      className="bg-black hover:bg-gray-800 text-white rounded-full px-6 py-2"
+    >
+      Book a call
+    </Button>
+  );
+}
+
 const Index: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -127,7 +144,7 @@ const Index: React.FC = () => {
 
           {/* Main introduction */}
           <motion.div
-            className="flex flex-col md:flex-row md:items-end mb-6"
+            className="flex flex-col md:flex-row md:items-end"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4, duration: 0.5 }}
@@ -154,14 +171,15 @@ const Index: React.FC = () => {
               </div>
 
               <div className="text-xl sm:text-2xl text-gray-500 mb-2 text-center md:text-left">
-                I'm a{" "}
+                A{" "}
                 <span className="text-black font-medium">
-                  Full Stack Developer
+                  Full Stack Software Craftsperson
                 </span>{" "}
-                specialized in
+                who turns complex ideas into clean, maintainable solutions with
+
               </div>
               <div className="text-[#FF6D0A] text-2xl sm:text-3xl font-medium mb-4 text-center md:text-left">
-                AI, Web3, React, Django & MERN.
+                AI, Web3 & modern web stacks.
               </div>
 
               <motion.div
@@ -171,8 +189,8 @@ const Index: React.FC = () => {
                 transition={{ delay: 0.8, duration: 0.5 }}
               >
                 <div className="inline-block bg-gray-100 rounded-full px-4 py-1.5 text-sm mb-6">
-                  <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                  Open to work
+                  {/* <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span> */}
+                  🔥 Ready for Side Projects
                 </div>
               </motion.div>
             </div>
@@ -193,9 +211,7 @@ const Index: React.FC = () => {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8, duration: 0.5 }}
           >
-            <Button className="bg-black hover:bg-gray-800 text-white rounded-full px-6 py-2">
-              Book a call
-            </Button>
+            <CallButton/>
           </motion.div>
         </header>
 
