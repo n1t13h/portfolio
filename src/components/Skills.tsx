@@ -15,22 +15,27 @@ const skills = [
   { name: 'Redis', className: 'devicon-redis-plain' },
   { name: 'MongoDB', className: 'devicon-mongodb-plain' },
   { name: 'MySQL', className: 'devicon-mysql-plain' },
-  { name: 'Postgres', className: 'devicon-postgresql-plain' }
+  { name: 'Postgres', className: 'devicon-postgresql-plain' },
+  // AI Stack
+  { name: 'PyTorch', className: 'devicon-pytorch-original' },
+  { name: 'TensorFlow', className: 'devicon-tensorflow-original' },
+  { name: 'LangChain', className: 'devicon-python-plain' }, // Python ecosystem
+  { name: 'OpenAI', className: 'devicon-network-plain' }, // Conceptual icon
+  { name: 'Hugging Face', className: 'devicon-python-plain' } // Python ecosystem
 ];
 
 const Skills: React.FC = () => {
   return (
-    <div>
-      <h3 className="text-lg font-medium mb-4">Skills</h3>
-      {/* Grid layout: 3 columns on default, 4 columns on small screens and up */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-6">
-        {skills.map((skill) => (
-          <div key={skill.name} className="group flex flex-col items-center">
-            <i className={`${skill.className} devicon-icon text-2xl`} />
-            <span className="mt-2 text-sm">{skill.name}</span>
-          </div>
-        ))}
-      </div>
+    <div className="flex flex-wrap gap-2">
+      {skills.map((skill) => (
+        <div
+          key={skill.name}
+          className="group flex items-center gap-2 px-3 py-1.5 border border-border hover:bg-foreground hover:text-background hover:border-foreground transition-all duration-300 cursor-default"
+        >
+          <i className={`${skill.className} text-lg text-muted-foreground group-hover:text-background transition-colors`} />
+          <span className="text-sm font-mono text-muted-foreground group-hover:text-background transition-colors uppercase">{skill.name}</span>
+        </div>
+      ))}
     </div>
   );
 };

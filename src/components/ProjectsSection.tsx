@@ -1,104 +1,75 @@
-import React, { useState } from 'react';
-import ReactDOM from 'react-dom';
+import React from 'react';
 
 const projects = [
   {
-    title: "Insurance Broker",
-    description:
-      "Created EHB Portal for an leading insurance broker in India",
-    tags: ["Insurance", "EHB", "AWS Serverless Backend"],
+    id: "01",
+    title: "INSURANCE BROKER",
+    year: "2024",
+    tags: ["AWS", "SERVERLESS"],
+    description: "EHB Portal for leading insurance broker"
   },
   {
-    title: "Document Attestation",
-    description:
-      "A blockchain based document attestation system built using Open Attestation",
-    tags: ["Blockchain", "Open Attestation", "Account Abstraction"],
+    id: "02",
+    title: "DOC ATTESTATION",
+    year: "2023",
+    tags: ["BLOCKCHAIN", "NEXT.JS"],
+    description: "Decentralized document verification"
   },
   {
-    title: "Agentic RAG",
-    description: "An AI agent that can answer questions about a document or Database",
-    tags: ["AI", "LangChain", "Vector DB"],
+    id: "03",
+    title: "AGENTIC RAG",
+    year: "2023",
+    tags: ["AI", "VECTOR DB"],
+    description: "Autonomous reasoning engine"
   },
   {
-    title: "Liquid Staking",
-    description:
-      "A liquid staking protocol that allows users to stake their assets and receive a liquid token in return",
-    tags: ["Blockchain", "Liquid Staking", "Ethereum"],
+    id: "04",
+    title: "LIQUID STAKING",
+    year: "2022",
+    tags: ["ETH", "SOLIDITY"],
+    description: "DeFi protocol for asset staking"
   }
-
 ];
 
 const ProjectsSection: React.FC = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const renderProjects = (endpoint: number = projects.length) => (
-    <div className="space-y-4">
-      {projects.slice(0, endpoint).map((project, index) => (
-        <div
-          key={index}
-          className="border border-gray-200 p-4 rounded-lg hover:shadow-md transition-shadow"
-        >
-          <div className="font-medium">{project.title}</div>
-          <p className="text-sm text-gray-500 mt-1">{project.description}</p>
-          <div className="flex gap-2 mt-2 flex-wrap">
-            {project.tags.map((tag, idx) => (
-              <span
-                key={idx}
-                className="bg-gray-100 text-xs px-2 py-1 rounded-full"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-
   return (
-    <div>
-      <h3 className="text-lg font-medium mb-4">My Projects</h3>
-      {renderProjects(2)}
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className="mt-4 text-xs flex items-center text-gray-600"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-4 w-4 mr-1"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-          />
-        </svg>
-        View all projects
-      </button>
+    <div className="w-full relative">
+      <div className="flex justify-between items-end mb-12 border-b border-border pb-4">
+         <h3 className="text-sm font-mono text-muted-foreground uppercase tracking-widest">Selected Works</h3>
+         <span className="text-sm font-mono text-muted-foreground">(04)</span>
+      </div>
 
-      {/* Modal via Portal */}
-      {isModalOpen &&
-        ReactDOM.createPortal(
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[70vh] overflow-y-auto shadow-lg">
-              <div className="flex justify-between items-center mb-4 sticky top-0 bg-white z-10 pb-2">
-                <h3 className="text-lg font-medium">My Projects</h3>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="text-gray-600 text-2xl font-bold"
-                >
-                  &times;
-                </button>
-              </div>
-              {renderProjects()}
+      <div className="flex flex-col">
+        {projects.map((project) => (
+          <div
+            key={project.id}
+            className="group relative border-t border-border py-12 md:py-16 transition-colors duration-300 hover:bg-primary hover:text-primary-foreground cursor-pointer"
+          >
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-baseline gap-4 px-4 md:px-0">
+               <div className="flex items-baseline gap-6 md:w-1/3">
+                 <span className="font-mono text-xs text-muted-foreground group-hover:text-primary-foreground/60">/{project.id}</span>
+                 <h4 className="text-4xl md:text-6xl font-bold tracking-tighter uppercase font-['Space_Grotesk'] group-hover:translate-x-4 transition-transform duration-500">{project.title}</h4>
+               </div>
+
+               <div className="md:w-1/3 text-left hidden md:block">
+                  <p className="font-mono text-xs text-muted-foreground group-hover:text-primary-foreground/60 uppercase">{project.description}</p>
+               </div>
+
+               <div className="md:w-1/3 flex justify-end gap-2 items-center">
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    {project.tags.map((tag, i) => (
+                      <span key={i} className="text-[10px] border border-current rounded-full px-2 py-0.5 font-mono uppercase bg-transparent">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <span className="font-mono text-xs hidden md:inline-block group-hover:font-bold">{project.year}</span>
+               </div>
             </div>
-          </div>,
-          document.body
-        )}
+          </div>
+        ))}
+        <div className="border-t border-border" />
+      </div>
     </div>
   );
 };

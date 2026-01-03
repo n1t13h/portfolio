@@ -1,260 +1,148 @@
 import React, { useState } from "react";
-import { motion } from "framer-motion"; // added framer-motion
-import BrowserFrame from "@/components/BrowserFrame";
-import BentoGrid from "@/components/BentoGrid";
-import BentoItem from "@/components/BentoItem";
-import Experience from "@/components/Experience";
+import { Navbar } from "@/components/Navbar";
 import ProjectsSection from "@/components/ProjectsSection";
-import BlogSection from "@/components/BlogSection";
-import MapLocation from "@/components/MapLocation";
+import Experience from "@/components/Experience";
 import Skills from "@/components/Skills";
-import { Button } from "@/components/ui/button";
-import { Share2, Github, Linkedin, FileText } from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
 import profilePhoto from "@/assets/final.png";
-import businessCard from "@/assets/card.png"; // Assuming you have a business card image
-
-const CallButton = ()=> {
-  const handleClick = () => {
-    (window as any).Calendly.initPopupWidget({
-      url: "https://calendly.com/nitishp74/30min",
-    });
-  };
-
-  return (
-    <Button
-      onClick={handleClick}
-      className="bg-black hover:bg-gray-800 text-white rounded-full px-6 py-2"
-    >
-      Book a call
-    </Button>
-  );
-}
+import { motion, AnimatePresence } from "framer-motion";
 
 const Index: React.FC = () => {
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const handleShareBusinessCard = async () => {
-    setIsGenerating(true);
-    try {
-      // Wait to simulate some async generation (if needed)
-
-      const response = await fetch(businessCard);
-      const blob = await response.blob();
-      const file = new File([blob], "card.png", { type: "image/png" });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: "Nitish Patel - Full Stack Developer",
-          text: "Check out my Site https://ntshptl.in",
-          files: [file],
-        });
-
-        toast({
-          title: "Shared successfully!",
-          description: "Your business card was shared via system share dialog.",
-        });
-      } else if (navigator.share) {
-        // Fallback to text-only share
-        await navigator.share({
-          title: "Nitish Patel - Full Stack Developer",
-          text: "Check out my Site https://ntshptl.in\nMail:nitishp.dev@gmail.com",
-        });
-
-        toast({
-          title: "Shared successfully (text only)",
-          description:
-            "Business card image sharing isn't supported, but your link was shared.",
-        });
-      } else {
-        // Fallback to clipboard
-        await navigator.clipboard.writeText(
-          "Check out my Site https://ntshptl.in"
-        );
-
-        toast({
-          title: "Copied to clipboard!",
-          description:
-            "Business card sharing not supported on this device. Website link copied instead.",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error sharing business card",
-        description: "Please try again later or use a supported device.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <header className="mb-12">
-          {/* Top header: logo/email and social icons */}
-          <motion.div
-            className="flex flex-col md:flex-row justify-between items-center mb-8"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-          >
-            <div className="flex items-center mb-4 md:mb-0">
-              <div className="h-10 w-10 bg-black rounded flex items-center justify-center text-white">
-                <span>NP</span>
-              </div>
-              <span className="ml-2 text-gray-800 text-sm sm:text-base">
-                nitishp.dev@gmail.com
-              </span>
-            </div>
+    <div className="min-h-screen bg-background text-foreground relative selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black font-['Space_Grotesk']">
+      <Navbar />
 
-            <div className="flex items-center space-x-3">
-              <a
-                href="https://github.com/nitishpatel/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <Github className="h-5 w-5" />
-              </a>
-              <a
-                href="https://linkedin.com/in/ntshptl/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <Linkedin className="h-5 w-5" />
-              </a>
-              <a
-                href="https://drive.google.com/file/d/1DwZGgapSsfOGgx5Je3UICvUERDH_m1k4/view?usp=sharing"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
-              >
-                <FileText className="h-4 w-4" />
-                Resume
-              </a>
-            </div>
-          </motion.div>
+      {/* HERO: The Manifest - Centered Layout with Kinetic Motion */}
+      <section className="min-h-screen flex flex-col justify-center px-4 md:px-8 max-w-[1920px] mx-auto pt-20">
 
-          {/* Main introduction */}
-          <motion.div
-            className="flex flex-col md:flex-row md:items-end"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
-          >
-            <div className="flex-grow">
-              <div className="flex flex-col sm:flex-row items-center mb-2">
-                <h1 className="text-3xl sm:text-4xl font-bold mr-3 text-center sm:text-left">
-                  Hi, I'm
-                </h1>
-                <motion.div
-                  className="relative"
-                  whileHover={{ scale: 1.1 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <img
-                    src={profilePhoto}
-                    alt="Profile"
-                    className="w-12 h-12 rounded-full object-cover transition-transform duration-300 hover:scale-150"
-                  />
-                </motion.div>
-                <h1 className="text-3xl sm:text-4xl font-bold ml-0 sm:ml-2 mt-2 sm:mt-0 text-center sm:text-left">
-                  Nitish Patel!
-                </h1>
-              </div>
-
-              <div className="text-xl sm:text-2xl text-gray-500 mb-2 text-center md:text-left">
-                A{" "}
-                <span className="text-black font-medium">
-                  Full Stack Software Craftsperson
-                </span>{" "}
-                who turns complex ideas into clean, maintainable solutions with
-
-              </div>
-              <div className="text-[#FF6D0A] text-2xl sm:text-3xl font-medium mb-4 text-center md:text-left">
-                AI, Web3 & modern web stacks.
-              </div>
-
+        <div className="flex flex-col md:flex-row justify-between items-center md:items-end gap-12 w-full">
+           <div className="flex-1 w-full relative z-10">
+              {/* Kinetic Typography */}
               <motion.div
-                className="mt-6 flex justify-center md:justify-start"
+                initial={{ opacity: 0, y: 100 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                className="relative"
+              >
+                  <h1 className="text-[14vw] leading-[0.8] font-bold tracking-tighter uppercase text-foreground mix-blend-exclusion hover:text-primary transition-colors duration-500 cursor-default">
+                    <span className="block overflow-hidden">
+                        <motion.span
+                            initial={{ y: "100%" }}
+                            animate={{ y: "0%" }}
+                            transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+                            className="block"
+                        >
+                            NITISH
+                        </motion.span>
+                    </span>
+                    <span className="block overflow-hidden">
+                        <motion.span
+                            initial={{ y: "100%" }}
+                            animate={{ y: "0%" }}
+                            transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                            className="block"
+                        >
+                            PATEL
+                        </motion.span>
+                    </span>
+                  </h1>
+              </motion.div>
+
+              <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.8, duration: 0.5 }}
+                transition={{ delay: 0.6, duration: 1 }}
+                className="font-mono text-sm md:text-lg text-muted-foreground max-w-xl uppercase tracking-widest mt-8 ml-2"
               >
-                <div className="inline-block bg-gray-100 rounded-full px-4 py-1.5 text-sm mb-6">
-                  {/* <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span> */}
-                  🔥 Ready for Side Projects
-                </div>
-              </motion.div>
+                // Software Craftperson<br/>
+              </motion.p>
+           </div>
+
+           {/* Editorial Image Placement */}
+           <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 1, delay: 0.4, ease: "easeOut" }}
+              className="hidden md:block mb-8 relative"
+           >
+             <div className="w-[400px] h-[500px] grayscale hover:grayscale-0 transition-all duration-700 ease-in-out relative overflow-hidden group">
+               <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover scale-110 hover:scale-100 transition-transform duration-1000" />
+               <div className="absolute inset-0 border border-border opacity-20 group-hover:border-primary/50 transition-colors" />
+             </div>
+
+             {/* Studio Meta Data */}
+             <div className="absolute -left-12 bottom-12 -rotate-90 origin-left">
+                <span className="font-mono text-xs text-muted-foreground uppercase tracking-widest group-hover:text-primary transition-colors">EST. 2024</span>
+             </div>
+           </motion.div>
+        </div>
+        <div className="border-t border-border mt-12 w-full" />
+      </section>
+
+      {/* SELECTED WORKS: The Archive */}
+      <section id="work" className="px-4 md:px-8 max-w-[1920px] mx-auto mb-32">
+        <ProjectsSection />
+      </section>
+
+      {/* INFO GRID: The Specs */}
+      <section id="about" className="px-4 md:px-8 max-w-[1920px] mx-auto mb-32">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-16 md:gap-32">
+
+          {/* LEFT: Experience List */}
+          <div>
+            <div className="flex justify-between items-end mb-8 border-b border-border pb-4">
+               <h3 className="text-sm font-mono text-muted-foreground">EXPERIENCE LOG</h3>
+               <span className="text-sm font-mono text-muted-foreground">(03)</span>
             </div>
-          </motion.div>
 
-          <motion.p
-            className="text-lg max-w-2xl mx-auto md:mx-0 text-center md:text-left mb-6"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6, duration: 0.5 }}
-          >
-            Feel free to explore my portfolio and reach out—I'd love to connect!
-          </motion.p>
-
-          <motion.div
-            className="mt-6 flex justify-center md:justify-start"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8, duration: 0.5 }}
-          >
-            <CallButton/>
-          </motion.div>
-        </header>
-
-        <BentoGrid className="mb-12">
-          <BentoItem>
-            <Skills />
-          </BentoItem>
-
-          <BentoItem colSpan={2}>
             <Experience />
-          </BentoItem>
+          </div>
 
-          <BentoItem>
-            <ProjectsSection />
-          </BentoItem>
+          {/* RIGHT: Stack & Bio */}
+          <div className="flex flex-col gap-16">
+            <div>
+               <div className="flex justify-between items-end mb-8 border-b border-border pb-4">
+                  <h3 className="text-sm font-mono text-muted-foreground">BIO_DATA</h3>
+               </div>
+               <p className="text-2xl md:text-3xl font-light leading-snug text-foreground/90">
+                 I build accessible, pixel-perfect, and performant web experiences.
+                 Currently obsessed with <span className="underline decoration-1 underline-offset-4 decoration-primary/50">Agentic AI</span> and <span className="underline decoration-1 underline-offset-4 decoration-primary/50">DeFi Protocols</span>.
+               </p>
+            </div>
 
-          <BentoItem colSpan={2}>
-            <BlogSection />
-          </BentoItem>
 
-          <BentoItem colSpan={3}>
-            <MapLocation />
-          </BentoItem>
-        </BentoGrid>
+          </div>
 
-        <motion.div
-          className="mt-16 mb-8 flex justify-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1, duration: 0.5 }}
-        >
-          <Button
-            variant="outline"
-            className="group border-dashed hover:border-solid flex items-center gap-2 rounded-full py-2 px-6"
-            onClick={handleShareBusinessCard}
-            disabled={isGenerating}
-          >
-            <Share2 className="h-4 w-4 group-hover:rotate-12 transition-transform" />
-            {isGenerating ? "Generating..." : "Share my business card"}
-          </Button>
-        </motion.div>
-      </div>
-    </motion.div>
+        </div>
+
+        <div className="mt-16 md:mt-32">
+           <div className="flex justify-between items-end mb-8 border-b border-border pb-4">
+              <h3 className="text-sm font-mono text-muted-foreground">TECH_STACK</h3>
+           </div>
+           <Skills />
+        </div>
+      </section>
+
+      {/* FOOTER: The Connection */}
+      <section id="contact" className="px-4 md:px-8 pt-20 pb-10 border-t border-border">
+         <div className="flex flex-col items-center justify-center text-center py-20">
+            <h2 className="text-[8vw] md:text-[6vw] font-bold leading-none tracking-tighter hover:text-primary transition-colors cursor-pointer text-foreground">
+              <a href="mailto:contact@ntshptl.in">LET'S TALK</a>
+            </h2>
+            <div className="flex gap-8 mt-12 font-mono text-sm uppercase text-foreground">
+               <a href="https://github.com/nitishpatel/" className="hover:text-primary transition-colors">Github</a>
+               <a href="https://linkedin.com/in/ntshptl/" className="hover:text-primary transition-colors">LinkedIn</a>
+               <a href="https://twitter.com" className="hover:text-primary transition-colors">Twitter</a>
+               <a href="https://drive.google.com/file/d/1lJnzel5i3I2sT_K-zKzNwnAngtSkR-f4/view?usp=sharing" className="hover:text-primary transition-colors">Resume</a>
+            </div>
+         </div>
+
+         <div className="flex justify-between font-mono text-[10px] text-muted-foreground uppercase pt-12">
+            <span>© 2024 Nitish Patel</span>
+            <span>SYSTEM_STATUS: ONLINE</span>
+         </div>
+      </section>
+
+    </div>
   );
 };
 
