@@ -69,3 +69,7 @@ The full list is in the ledger (lines starting `minor (deferred)`). Highlights:
 - `ui/sonner.tsx` still follows the system theme.
 - The landing photo strip link reads "See all photographs" (the mockup said "See all 48 photographs").
 - The README deploy step clears the old build in `../nitishpatel.github.io` (keeps `.git` and `CNAME`).
+
+## Added after the main build
+
+- **Collection intro:** opening a collection plays a ~2.6s version of the site intro with the collection's name in the wordmark (window opens after the first part of the title) and that collection's own photos drifting in. Shared stage: `src/components/intro/IntroStage.tsx`; collection version: `src/components/photos/CollectionIntro.tsx` (+ `introPhotos.ts`). Plays on every open, but not under reduced motion or on shared `?photo=` links. Skippable by click/key/scroll. Uncommitted.

@@ -1,8 +1,9 @@
-import { useEffect } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { SiteNav } from "@/components/site/SiteNav";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { CollectionIntro } from "@/components/photos/CollectionIntro";
 import { EssayBlock } from "@/components/photos/EssayBlock";
 import { Lightbox, useLightboxParam } from "@/components/photos/Lightbox";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,8 +16,17 @@ const Back = () => (
   </Link>
 );
 
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
 const PhotoCollection = () => {
   const { slug } = useParams();
+  const [params] = useSearchParams();
+  // Decided once per collection (so opening the lightbox later doesn't replay it); skipped for
+  // reduced motion and for shared ?photo= links, where the visitor came for one picture.
+  const canPlayIntro = () => !prefersReducedMotion() && !params.has("photo");
+  const [intro, setIntro] = useState({ slug, play: canPlayIntro() });
+  if (intro.slug !== slug) setIntro({ slug, play: canPlayIntro() });
   const { open } = useLightboxParam();
   const { data: collections, isLoading } = useQuery({ queryKey: ["collections"], queryFn: getCollections });
   const index = collections?.findIndex((c) => c.slug === slug) ?? -1;
@@ -48,6 +58,7 @@ const PhotoCollection = () => {
 
   return (
     <>
+      {collection && intro.play && <CollectionIntro key={collection.slug} collection={collection} />}
       <SiteNav />
       <main data-testid="page-photo-collection" className="mx-auto max-w-[1520px] px-4 pb-10 pt-[38px] sm:px-7">
         <Back />

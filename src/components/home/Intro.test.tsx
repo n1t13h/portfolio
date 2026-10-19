@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { pastSkipGrace } from "@/test/timing";
 import { Intro, INTRO_KEY, shouldPlayIntro } from "./Intro";
 
 describe("shouldPlayIntro", () => {
@@ -42,6 +43,7 @@ describe("<Intro />", () => {
     const done = vi.fn();
     render(<Intro onDone={done} />);
     await act(async () => {});
+    await pastSkipGrace();
     await userEvent.keyboard("a");
     expect(done).toHaveBeenCalled();
     expect(sessionStorage.getItem(INTRO_KEY)).toBe("1");
