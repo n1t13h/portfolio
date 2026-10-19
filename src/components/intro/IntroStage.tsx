@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Photo } from "@/data/photos";
 import { imgUrl } from "@/lib/unsplash";
 import { FLOATS } from "./floats";
@@ -12,10 +12,10 @@ const SKIP_GRACE = 300;
 
 type IntroStageProps = {
   testId: string;
-  /** Photos for the floating tiles, index-aligned with FLOATS; missing ones render nothing. */
-  floatPhotos: Photo[];
-  /** Photos cycled inside the wordmark's window. */
-  windowPhotos: Photo[];
+  /** Content for the floating tiles, index-aligned with FLOATS; missing ones render nothing. */
+  floatItems: ReactNode[];
+  /** Content cycled inside the wordmark's window. */
+  windowItems: ReactNode[];
   before: string;
   after?: string;
   duration: number;
@@ -32,8 +32,8 @@ type IntroStageProps = {
  */
 export function IntroStage({
   testId,
-  floatPhotos,
-  windowPhotos,
+  floatItems,
+  windowItems,
   before,
   after,
   duration,
@@ -84,7 +84,7 @@ export function IntroStage({
 
   if (gone) return null;
 
-  const active = windowPhotos.length ? tick % windowPhotos.length : 0;
+  const active = windowItems.length ? tick % windowItems.length : 0;
 
   return (
     <div
@@ -98,7 +98,7 @@ export function IntroStage({
         @keyframes intro-open { to { width:1.9em; } }
       `}</style>
       {FLOATS.map((f, i) =>
-        i < floatPhotos.length || floatPhotos.length === 0 ? (
+        i < floatItems.length || floatItems.length === 0 ? (
           <div
             key={i}
             className="absolute overflow-hidden rounded-[10px] bg-[#f1f1f0] opacity-0"
@@ -109,9 +109,7 @@ export function IntroStage({
               animation: `intro-drift ${duration}ms cubic-bezier(.16,1,.3,1) ${f.delay}s forwards`,
             }}
           >
-            {floatPhotos[i] && (
-              <img src={imgUrl(floatPhotos[i].pid, f.w)} alt="" className="block h-full w-full object-cover" />
-            )}
+            {floatItems[i]}
           </div>
         ) : null,
       )}
@@ -123,18 +121,19 @@ export function IntroStage({
           className="relative mx-[.02em] h-[1.15em] w-0 shrink-0 overflow-hidden rounded-[12px]"
           style={{ animation: "intro-open 1s cubic-bezier(.16,1,.3,1) .5s forwards" }}
         >
-          {windowPhotos.map((p, i) => (
-            <img
-              key={p.id}
-              src={imgUrl(p.pid, 500)}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{ opacity: i === active ? 1 : 0 }}
-            />
+          {windowItems.map((item, i) => (
+            <div key={i} className="absolute inset-0" style={{ opacity: i === active ? 1 : 0 }}>
+              {item}
+            </div>
           ))}
         </span>
         {after && <span>{after}</span>}
       </div>
     </div>
   );
+}
+
+/** A photo that fills its tile (floating tiles and the wordmark window). */
+export function PhotoImg({ photo, width }: { photo: Photo; width: number }) {
+  return <img src={imgUrl(photo.pid, width)} alt="" className="block h-full w-full object-cover" />;
 }

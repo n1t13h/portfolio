@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { SiteNav } from "@/components/site/SiteNav";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { parseIntroVariant } from "@/components/intro/variants";
 import { CollectionIntro } from "@/components/photos/CollectionIntro";
 import { EssayBlock } from "@/components/photos/EssayBlock";
 import { Lightbox, useLightboxParam } from "@/components/photos/Lightbox";
@@ -23,8 +24,10 @@ const PhotoCollection = () => {
   const { slug } = useParams();
   const [params] = useSearchParams();
   // Decided once per collection (so opening the lightbox later doesn't replay it); skipped for
-  // reduced motion and for shared ?photo= links, where the visitor came for one picture.
-  const canPlayIntro = () => !prefersReducedMotion() && !params.has("photo");
+  // reduced motion, for shared ?photo= links (the visitor came for one picture), and when an
+  // explicit ?intro= variant is already playing over the page.
+  const canPlayIntro = () =>
+    !prefersReducedMotion() && !params.has("photo") && parseIntroVariant(`?${params}`) === null;
   const [intro, setIntro] = useState({ slug, play: canPlayIntro() });
   if (intro.slug !== slug) setIntro({ slug, play: canPlayIntro() });
   const { open } = useLightboxParam();

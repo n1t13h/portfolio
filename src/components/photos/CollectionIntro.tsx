@@ -1,5 +1,6 @@
 import type { ResolvedCollection } from "@/data/photos";
-import { IntroStage } from "@/components/intro/IntroStage";
+import { IntroStage, PhotoImg } from "@/components/intro/IntroStage";
+import { FLOATS } from "@/components/intro/floats";
 import { pickIntroPhotos, splitTitle } from "./introPhotos";
 
 const DURATION = 2600;
@@ -11,8 +12,12 @@ export function CollectionIntro({ collection }: { collection: ResolvedCollection
   return (
     <IntroStage
       testId="collection-intro"
-      floatPhotos={floatPhotos}
-      windowPhotos={windowPhotos}
+      floatItems={floatPhotos.map((p, i) => (
+        <PhotoImg key={p.id} photo={p} width={FLOATS[i].w} />
+      ))}
+      windowItems={windowPhotos.map((p) => (
+        <PhotoImg key={p.id} photo={p} width={500} />
+      ))}
       before={before}
       after={after}
       duration={DURATION}

@@ -73,3 +73,4 @@ The full list is in the ledger (lines starting `minor (deferred)`). Highlights:
 ## Added after the main build
 
 - **Collection intro:** opening a collection plays a ~2.6s version of the site intro with the collection's name in the wordmark (window opens after the first part of the title) and that collection's own photos drifting in. Shared stage: `src/components/intro/IntroStage.tsx`; collection version: `src/components/photos/CollectionIntro.tsx` (+ `introPhotos.ts`). Plays on every open, but not under reduced motion or on shared `?photo=` links. Skippable by click/key/scroll. Uncommitted.
+- **Intro links:** `/?intro=developer` (tech-tile intro) and `/?intro=photos` (photo intro, then opens `/photos`). The param name `intro` is my assumption (you wrote `?=developer`); change it in `src/components/intro/variants.ts`. Gate: `src/components/intro/IntroGate.tsx`, tiles: `devTiles.tsx`.

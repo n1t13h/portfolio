@@ -2,7 +2,8 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pastSkipGrace } from "@/test/timing";
-import { Intro, INTRO_KEY, shouldPlayIntro } from "./Intro";
+import { INTRO_KEY, shouldPlayIntro } from "@/components/intro/session";
+import { Intro } from "./Intro";
 
 describe("shouldPlayIntro", () => {
   it("plays once per session and never under reduced motion", () => {

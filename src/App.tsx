@@ -8,6 +8,7 @@ import Photos from "./pages/Photos";
 import PhotoCollection from "./pages/PhotoCollection";
 import NotFound from "./pages/NotFound";
 import { ScrollToHash } from "@/components/site/ScrollToHash";
+import { IntroGate } from "@/components/intro/IntroGate";
 
 const queryClient = new QueryClient();
 
@@ -18,6 +19,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <ScrollToHash />
+        <IntroGate />
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/photos" element={<Photos />} />

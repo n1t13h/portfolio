@@ -37,3 +37,12 @@ UNSPLASH_ACCESS_KEY=... npm run photos:snapshot
 ```
 
 This rewrites `src/data/photos/snapshot.json` from the Unsplash API, merging by photo id so existing entries are never lost. Photos not yet in the snapshot are fetched first, then existing ones are refreshed; refreshed entries are replaced with fresh Unsplash data (the snapshot is generated, editorial data lives in `curation.ts`). The demo API key allows 50 requests per hour; if the limit is hit the script saves what it has, so re-run after an hour to finish. Collections, order and exclusions live in `src/data/photos/curation.ts`.
+
+## Intro links
+
+The first load can pick its intro from the URL (the param name lives in `src/components/intro/variants.ts`):
+
+- `/` and `/?intro=developer` play the intro with developer tiles (Temporal, agentic AI, Web3, Python, microservices, …). Developer is the default; `/` plays it once per session.
+- `/?intro=photos` plays the photo intro and then lands on `/photos`.
+
+An explicit variant plays even if the default intro already ran this session. Under reduced motion the animation is skipped, but `?intro=photos` still opens the photography page. Unknown values fall back to the default (developer) intro. The tiles are in `src/components/intro/devTiles.tsx`.

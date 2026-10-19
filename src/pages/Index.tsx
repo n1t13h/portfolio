@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Intro, shouldPlayIntro } from "@/components/home/Intro";
+import { DeveloperIntro } from "@/components/intro/DeveloperIntro";
+import { shouldPlayIntro } from "@/components/intro/session";
+import { parseIntroVariant } from "@/components/intro/variants";
 import { SiteNav } from "@/components/site/SiteNav";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { Hero } from "@/components/home/Hero";
@@ -15,19 +17,19 @@ const prefersReducedMotion = () =>
   typeof window !== "undefined" &&
   !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-// Intro unmounts itself after its fade-out.
-const noop = () => {};
-
 const Index = () => {
-  const [intro] = useState(() =>
-    shouldPlayIntro(
-      { getItem: (k) => window.sessionStorage.getItem(k) },
-      prefersReducedMotion(),
-    ),
+  // An explicit ?intro= variant is played by <IntroGate />, so the default intro steps aside.
+  const [intro] = useState(
+    () =>
+      parseIntroVariant(window.location.search) === null &&
+      shouldPlayIntro(
+        { getItem: (k) => window.sessionStorage.getItem(k) },
+        prefersReducedMotion(),
+      ),
   );
   return (
     <>
-      {intro && <Intro onDone={noop} />}
+      {intro && <DeveloperIntro />}
       <SiteNav />
       <main
         data-testid="page-home"
