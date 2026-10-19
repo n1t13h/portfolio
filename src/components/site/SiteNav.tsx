@@ -15,7 +15,7 @@ export function SiteNav() {
   return (
     <nav className="sticky top-0 z-10 bg-white/85 backdrop-blur-[14px]">
       <div className="mx-auto grid h-16 max-w-[1520px] grid-cols-[1fr_auto_1fr] items-center px-4 sm:px-7">
-        <Link to="/" className={linkCls}>Nitish</Link>
+        <Link to="/" className={`${linkCls} inline-flex min-h-11 items-center`}>Nitish</Link>
 
         <div className="hidden gap-[46px] md:flex">
           {sections.map((s) => (
@@ -35,7 +35,7 @@ export function SiteNav() {
           <a href={site.links.resume} target="_blank" rel="noreferrer" className={`${linkCls} hidden md:inline`}>Résumé</a>
           <Link to="/#contact" className={`${linkCls} hidden md:inline`}>Contact</Link>
           <Sheet>
-            <SheetTrigger aria-label="Menu" className="md:hidden">
+            <SheetTrigger aria-label="Menu" className="-mr-3 inline-flex h-11 w-11 items-center justify-center md:hidden">
               <Menu className="h-5 w-5" />
             </SheetTrigger>
             <SheetContent side="right" aria-describedby={undefined}>

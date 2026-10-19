@@ -45,7 +45,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
       before="nitish"
       after="patel"
       duration={DURATION}
-      wordmarkClass="whitespace-nowrap text-[clamp(72px,9vw,150px)]"
+      wordmarkClass="whitespace-nowrap text-[clamp(38px,11vw,64px)] md:text-[clamp(72px,9vw,150px)]"
       onFinish={handleFinish}
     />
   );
