@@ -12,7 +12,7 @@ router = APIRouter(prefix="/sync", tags=["admin-sync"])
 def get_sync_service(request: Request) -> SyncService:
     state = request.app.state
     return SyncService(
-        state.session_factory, state.unsplash, state.storage, state.settings, state.clock
+        state.uow_factory, state.unsplash, state.storage, state.settings, state.clock
     )
 
 

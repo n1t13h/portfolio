@@ -79,7 +79,7 @@ def sync(full: bool) -> int:
 
     settings = get_settings()
     service = SyncService(
-        make_session_factory(make_engine(settings.database_url)),
+        _uow_factory(settings),
         HttpxUnsplashClient(settings),
         R2Storage(settings),
         settings,

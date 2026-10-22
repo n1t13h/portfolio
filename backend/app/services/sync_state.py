@@ -1,17 +1,6 @@
-"""Access to the single sync_state row, shared by the sync and photo services."""
-
-from sqlalchemy.orm import Session
+"""Rules for the sync state row, shared by the sync and photo services."""
 
 from app.models import SyncState
-
-
-def state_row(db: Session) -> SyncState:
-    row = db.get(SyncState, 1)
-    if row is None:
-        row = SyncState(id=1, pending={}, skipped={})
-        db.add(row)
-        db.flush()
-    return row
 
 
 def skip(state: SyncState, unsplash_id: str, reason: str) -> None:

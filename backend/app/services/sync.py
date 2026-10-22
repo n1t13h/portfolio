@@ -3,25 +3,23 @@
 How it stays cheap: the listing is newest-first, so a normal run stops at the first photo it
 already has. Work that could not finish (rate limit, a bad file) is remembered in
 `sync_state.pending`, so stopping at that boundary never loses a photo.
+
+Every step is its own short transaction; no database session is held open while waiting on
+the network.
 """
 
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
-from sqlalchemy import CursorResult, or_, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.clock import Clock
 from app.core.config import Settings
 from app.integrations.storage import Storage
 from app.integrations.unsplash import RateLimited, UnsplashClient
-from app.models import Photo, SyncState
 from app.services.photos import PhotoService
-from app.services.sync_state import state_row
-from app.uow import SqlAlchemyUnitOfWork
+from app.uow import UnitOfWorkFactory
 
 log = logging.getLogger(__name__)
 
@@ -66,13 +64,13 @@ class _Progress:
 class SyncService:
     def __init__(
         self,
-        sessions: sessionmaker[Session],
+        uow_factory: UnitOfWorkFactory,
         client: UnsplashClient,
         storage: Storage,
         settings: Settings,
         clock: Clock,
     ) -> None:
-        self._sessions = sessions
+        self._uow = uow_factory
         self._client = client
         self._storage = storage
         self._settings = settings
@@ -83,28 +81,20 @@ class SyncService:
     def acquire(self) -> None:
         """Take the run lock, or raise SyncAlreadyRunning. Atomic across processes."""
         now = self._clock.now()
-        with self._sessions() as db:
+        with self._uow() as uow:
             try:
-                state_row(db)
-                db.commit()
+                uow.sync_state.get_or_create()
+                uow.commit()
             except IntegrityError:  # another process created the row first
-                db.rollback()
-            claimed: CursorResult[Any] = db.execute(  # type: ignore[assignment]
-                update(SyncState)
-                .where(
-                    SyncState.id == 1,
-                    or_(SyncState.running.is_(False), SyncState.last_started_at < now - STALE_LOCK),
-                )
-                .values(running=True, last_started_at=now)
-            )
-            db.commit()
-            if claimed.rowcount != 1:
+                uow.rollback()
+            if not uow.sync_state.try_acquire(now, now - STALE_LOCK):
                 raise SyncAlreadyRunning
+            uow.commit()
 
     def status(self) -> SyncStatus:
-        with self._sessions() as db:
-            row = state_row(db)
-            db.commit()
+        with self._uow() as uow:
+            row = uow.sync_state.get_or_create()
+            uow.commit()
             started = row.last_started_at
             fresh = started is not None and _aware(started) > self._clock.now() - STALE_LOCK
             return SyncStatus(
@@ -125,13 +115,13 @@ class SyncService:
 
     def execute(self, full: bool = False) -> SyncResult:
         """Do the sync. The caller must hold the lock (see `acquire`). Never raises."""
-        with self._sessions() as db:
-            row = state_row(db)
+        with self._uow() as uow:
+            row = uow.sync_state.get_or_create()
             skipped = dict(row.skipped)
             if full:  # a full resync retries failures, but never what the admin deleted
                 skipped = {k: v for k, v in skipped.items() if v != "failed"}
             progress = _Progress(pending=dict(row.pending), skipped=skipped)
-            db.commit()
+            uow.commit()
         try:
             self._import_new(full, progress)
         except Exception as exc:
@@ -142,27 +132,25 @@ class SyncService:
         return result
 
     def _import_new(self, full: bool, progress: _Progress) -> None:
-        with self._sessions() as db:
-            known = {u for u in db.scalars(select(Photo.unsplash_id)) if u}
-            found: list[str] = []
-            try:
-                self._discover(known, progress, full, found)
-            except RateLimited:
+        with self._uow() as uow:
+            known = set(uow.photos.unsplash_id_map())
+        found: list[str] = []
+        try:
+            self._discover(known, progress, full, found)
+        except RateLimited:
+            progress.stopped_early = True
+        # Oldest first: earlier-pending photos, then the newly found ones in reverse.
+        queue = [*progress.pending, *reversed(found)]
+        for unsplash_id in queue:
+            progress.pending.setdefault(unsplash_id, 0)
+        photos = PhotoService(self._uow, self._storage, self._settings)
+        for unsplash_id in dict.fromkeys(queue):
+            remaining = self._client.rate_limit_remaining
+            if remaining is not None and remaining < REQUESTS_PER_PHOTO:
                 progress.stopped_early = True
-            # Oldest first: earlier-pending photos, then the newly found ones in reverse.
-            queue = [*progress.pending, *reversed(found)]
-            for unsplash_id in queue:
-                progress.pending.setdefault(unsplash_id, 0)
-            photos = PhotoService(
-                lambda: SqlAlchemyUnitOfWork(self._sessions), self._storage, self._settings
-            )
-            for unsplash_id in dict.fromkeys(queue):
-                remaining = self._client.rate_limit_remaining
-                if remaining is not None and remaining < REQUESTS_PER_PHOTO:
-                    progress.stopped_early = True
-                    return
-                if not self._import_one(photos, unsplash_id, progress):
-                    return
+                return
+            if not self._import_one(photos, unsplash_id, progress):
+                return
 
     def _discover(self, known: set[str], progress: _Progress, full: bool, found: list[str]) -> None:
         page = 1
@@ -213,8 +201,8 @@ class SyncService:
 
     def _finish(self, progress: _Progress) -> SyncResult:
         error = "; ".join(progress.errors) or None
-        with self._sessions() as db:
-            row = state_row(db)
+        with self._uow() as uow:
+            row = uow.sync_state.get_or_create()
             row.running = False
             row.last_finished_at = self._clock.now()
             row.last_imported = progress.imported
@@ -222,7 +210,7 @@ class SyncService:
             row.rate_limit_remaining = self._client.rate_limit_remaining
             row.pending = progress.pending
             row.skipped = progress.skipped
-            db.commit()
+            uow.commit()
         return SyncResult(progress.imported, progress.stopped_early, error)
 
 
