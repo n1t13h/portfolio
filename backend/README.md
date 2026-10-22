@@ -78,6 +78,30 @@ The smoke script resets the local admin on every run.
 To try the real integrations, export `UNSPLASH_ACCESS_KEY` / `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`
 before `docker compose up`.
 
+## The admin UI
+
+It lives in the React app (`src/admin/`), at `/a/<ADMIN_PATH_PREFIX>/photos` (also `collections`, `sync`).
+The secret segment is read from the URL, never baked into the JavaScript bundle, and a wrong segment
+shows the ordinary "Page not found". The admin is a separate lazy-loaded chunk, so the public site's
+bundle is unchanged.
+
+```bash
+cd backend && docker compose up --build -d     # the API
+cd .. && npm run dev                           # the site, on http://localhost:8080
+# open http://localhost:8080/a/local-admin-path-0123456789/photos
+```
+
+- **Photos**: drag-and-drop or choose JPEGs (they go straight to storage, then the API processes them
+  as drafts); filter drafts/published; click a photo to edit title/place, publish, allow downloads,
+  assign it to a chapter, or delete; select several to publish/unpublish/delete at once; drag to reorder.
+- **Collections**: create/edit/publish/reorder collections; chapters with notes; add photos from the
+  library, drag to reorder them, star the covers.
+- **Sync**: run the Unsplash sync or a full resync and see what happened.
+
+The UI talks to `VITE_API_URL` (default `http://localhost:8000` in dev, `https://api.ntshptl.in` in a
+production build) with the session cookie. Browsers that refuse `Secure` cookies on plain
+`http://localhost` (Safari) can't sign in locally; use Chrome or Firefox.
+
 ## Develop
 
 ```bash

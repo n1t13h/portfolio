@@ -28,7 +28,7 @@ export function Contact() {
       <div>
         <h3 className="text-[22px] font-medium leading-[1.2] tracking-[-0.03em]">{heading}</h3>
         <p className="mb-[18px] mt-2.5 max-w-[300px] text-[15px] text-mid">{line}</p>
-        <button type="button" onClick={bookCall} className="text-[22px] tracking-[-0.02em] hover:underline">
+        <button type="button" onClick={bookCall} className="inline-flex min-h-11 items-center text-[22px] tracking-[-0.02em] hover:underline">
           {cta}
         </button>
       </div>
@@ -38,7 +38,7 @@ export function Contact() {
             key={s.label}
             href={s.href}
             {...(s.href.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}
-            className="flex flex-col gap-2"
+            className="flex min-h-11 flex-col gap-2 py-1"
           >
             <span aria-hidden="true" className="text-xl">
               {s.icon}

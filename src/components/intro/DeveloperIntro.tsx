@@ -12,7 +12,7 @@ export function DeveloperIntro() {
       before="nitish"
       after="patel"
       duration={3200}
-      wordmarkClass="whitespace-nowrap text-[clamp(72px,9vw,150px)]"
+      wordmarkClass="whitespace-nowrap text-[clamp(38px,11vw,64px)] md:text-[clamp(72px,9vw,150px)]"
       onFinish={markIntroPlayed}
     />
   );
