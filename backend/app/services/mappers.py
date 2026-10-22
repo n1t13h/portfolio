@@ -13,7 +13,6 @@ from app.schemas.public import (
     PublicExif,
     PublicPhoto,
 )
-from app.services.public_views import ChapterView, CollectionDetail, CollectionView
 
 
 def admin_photo(photo: Photo, storage: Storage) -> PhotoOut:
@@ -77,35 +76,39 @@ def public_photo(photo: Photo, storage: Storage) -> PublicPhoto:
     )
 
 
-def public_summary(view: CollectionView, storage: Storage) -> PublicCollectionSummary:
-    c = view.collection
+def public_summary(
+    collection: Collection, covers: Sequence[Photo], storage: Storage
+) -> PublicCollectionSummary:
     return PublicCollectionSummary(
-        slug=c.slug,
-        title=c.title,
-        place=c.place,
-        year=c.year,
-        intro=c.intro,
-        covers=[public_photo(p, storage) for p in view.covers],
+        slug=collection.slug,
+        title=collection.title,
+        place=collection.place,
+        year=collection.year,
+        intro=collection.intro,
+        covers=[public_photo(p, storage) for p in covers],
     )
 
 
-def _public_chapter(view: ChapterView, storage: Storage) -> PublicChapter:
-    return PublicChapter(
-        title=view.chapter.title,
-        note=view.chapter.note,
-        photos=[public_photo(p, storage) for p in view.photos],
-    )
-
-
-def public_detail(detail: CollectionDetail, storage: Storage) -> PublicCollection:
-    c = detail.collection
+def public_collection(
+    collection: Collection,
+    covers: Sequence[Photo],
+    chapters: Sequence[tuple[Chapter, Sequence[Photo]]],
+    storage: Storage,
+) -> PublicCollection:
     return PublicCollection(
-        slug=c.slug,
-        title=c.title,
-        place=c.place,
-        year=c.year,
-        intro=c.intro,
-        covers=[public_photo(p, storage) for p in detail.covers],
-        chapters=[_public_chapter(ch, storage) for ch in detail.chapters],
-        photos=[public_photo(p, storage) for ch in detail.chapters for p in ch.photos],
+        slug=collection.slug,
+        title=collection.title,
+        place=collection.place,
+        year=collection.year,
+        intro=collection.intro,
+        covers=[public_photo(p, storage) for p in covers],
+        chapters=[
+            PublicChapter(
+                title=chapter.title,
+                note=chapter.note,
+                photos=[public_photo(p, storage) for p in photos],
+            )
+            for chapter, photos in chapters
+        ],
+        photos=[public_photo(p, storage) for _, photos in chapters for p in photos],
     )

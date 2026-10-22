@@ -5,33 +5,22 @@ from fastapi.responses import RedirectResponse
 
 from app.api.params import ResourceId
 from app.api.public.caching import cached_json
-from app.api.public.deps import get_public_views
-from app.core.deps import get_storage
-from app.integrations.storage import Bucket, Storage
-from app.services.mappers import public_photo
-from app.services.public_views import PublicViews
+from app.api.public.deps import get_catalog_service
+from app.services.catalog import CatalogService
 
 router = APIRouter(prefix="/photos", tags=["photos"])
-
-DOWNLOAD_URL_TTL_SECONDS = 300
 
 
 @router.get("")
 def list_photos(
-    request: Request,
-    views: PublicViews = Depends(get_public_views),
-    storage: Storage = Depends(get_storage),
+    request: Request, catalog: CatalogService = Depends(get_catalog_service)
 ) -> Response:
-    return cached_json(request, [public_photo(p, storage) for p in views.photos()])
+    return cached_json(request, catalog.photos())
 
 
 @router.get("/{photo_id}/download")
 def download(
-    photo_id: ResourceId,
-    views: PublicViews = Depends(get_public_views),
-    storage: Storage = Depends(get_storage),
+    photo_id: ResourceId, catalog: CatalogService = Depends(get_catalog_service)
 ) -> RedirectResponse:
-    photo = views.downloadable_photo(photo_id)
-    assert photo.download_key is not None
-    url = storage.presign_get(Bucket.PRIVATE, photo.download_key, DOWNLOAD_URL_TTL_SECONDS)
+    url = catalog.download_url(photo_id)
     return RedirectResponse(url, status_code=302, headers={"Cache-Control": "no-store"})

@@ -1,11 +1,13 @@
 """Dependencies for the public routes."""
 
-from fastapi import Depends
-from sqlalchemy.orm import Session
+from fastapi import Depends, Request
 
-from app.core.db import get_session
-from app.services.public_views import PublicViews
+from app.core.deps import get_storage
+from app.integrations.storage import Storage
+from app.services.catalog import CatalogService
 
 
-def get_public_views(session: Session = Depends(get_session)) -> PublicViews:
-    return PublicViews(session)
+def get_catalog_service(
+    request: Request, storage: Storage = Depends(get_storage)
+) -> CatalogService:
+    return CatalogService(request.app.state.uow_factory, storage)
