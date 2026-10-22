@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "photos:snapshot": "node scripts/unsplash-snapshot.mjs",
+    "photos:export-seed": "node scripts/export-curation.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "postbuild": "cp dist/index.html dist/404.html"

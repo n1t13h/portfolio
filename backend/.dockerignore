@@ -1,0 +1,12 @@
+.venv
+.env
+*.db
+*.db-shm
+*.db-wal
+__pycache__
+.mypy_cache
+.pytest_cache
+.ruff_cache
+tests
+deploy
+seed

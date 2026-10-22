@@ -1,0 +1,11 @@
+# /etc/systemd/system/portfolio-backup.timer
+[Unit]
+Description=Back up the database to R2 (schedule)
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target

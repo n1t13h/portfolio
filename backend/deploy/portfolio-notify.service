@@ -1,0 +1,18 @@
+# /etc/systemd/system/portfolio-notify.service
+[Unit]
+Description=Retry Telegram notifications that failed earlier
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=portfolio
+Group=portfolio
+WorkingDirectory=/opt/portfolio/backend
+EnvironmentFile=/etc/portfolio/backend.env
+ExecStart=/opt/portfolio/backend/.venv/bin/python -m app.cli notify-pending
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/portfolio

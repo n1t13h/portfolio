@@ -1,0 +1,10 @@
+# /etc/systemd/system/portfolio-notify.timer
+[Unit]
+Description=Retry Telegram notifications (schedule)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

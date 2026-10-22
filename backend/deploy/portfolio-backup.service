@@ -1,0 +1,18 @@
+# /etc/systemd/system/portfolio-backup.service
+[Unit]
+Description=Back up the database to R2
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=portfolio
+Group=portfolio
+WorkingDirectory=/opt/portfolio/backend
+EnvironmentFile=/etc/portfolio/backend.env
+ExecStart=/opt/portfolio/backend/.venv/bin/python -m app.cli backup
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/portfolio

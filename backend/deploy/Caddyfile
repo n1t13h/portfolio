@@ -1,0 +1,27 @@
+# /etc/caddy/Caddyfile — HTTPS for the API, certificates handled by Caddy.
+#
+# Keep the `api` DNS record DNS-only (grey cloud) in Cloudflare so Caddy sees the real client IP,
+# which the login lockout and contact rate limit depend on. If you later turn the Cloudflare proxy
+# on, add this to the top of the file so the real IP is taken from Cloudflare's header:
+#
+#   {
+#       servers {
+#           trusted_proxies static <ranges from https://www.cloudflare.com/ips/>
+#           client_ip_headers CF-Connecting-IP
+#       }
+#   }
+
+api.ntshptl.in {
+	encode zstd gzip
+	request_body {
+		max_size 1MB
+	}
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+	}
+	reverse_proxy 127.0.0.1:8000 {
+		header_up X-Forwarded-For {client_ip}
+	}
+}

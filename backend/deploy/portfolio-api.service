@@ -1,0 +1,28 @@
+# /etc/systemd/system/portfolio-api.service
+[Unit]
+Description=Portfolio API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=portfolio
+Group=portfolio
+WorkingDirectory=/opt/portfolio/backend
+EnvironmentFile=/etc/portfolio/backend.env
+# Apply any new migrations, then start. One worker keeps memory small and SQLite happy.
+ExecStartPre=/opt/portfolio/backend/.venv/bin/alembic upgrade head
+ExecStart=/opt/portfolio/backend/.venv/bin/uvicorn app.main:create_app --factory \
+    --host 127.0.0.1 --port 8000 --workers 1 \
+    --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=3
+
+# Hardening: the service can write only its data directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/portfolio
+
+[Install]
+WantedBy=multi-user.target

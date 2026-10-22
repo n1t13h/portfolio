@@ -1,0 +1,11 @@
+# /etc/systemd/system/portfolio-sync.timer
+[Unit]
+Description=Import new Unsplash photos as drafts (schedule)
+
+[Timer]
+OnCalendar=monthly
+Persistent=true
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target
