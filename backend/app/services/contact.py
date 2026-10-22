@@ -13,6 +13,7 @@ log = logging.getLogger(__name__)
 
 RETRY_WINDOW = timedelta(days=7)
 RETRY_BATCH = 10
+CLAIM_TTL = timedelta(minutes=5)  # a run that has held a message longer is assumed crashed
 NOTIFICATION_BODY_LIMIT = 3900  # leaves room for the header inside Telegram's 4096
 
 
@@ -57,13 +58,19 @@ class ContactService:
 
         Runs after each submission and from a timer, so a Telegram outage is retried.
         """
-        since = self._clock.now() - RETRY_WINDOW
+        now = self._clock.now()
         with self._uow() as uow:
-            for row in uow.contacts.list_pending(since, RETRY_BATCH):
+            for row in uow.contacts.list_pending(now - RETRY_WINDOW, RETRY_BATCH):
+                message_id, text = row.id, format_notification(row)
+                if not uow.contacts.claim(message_id, now, now - CLAIM_TTL):
+                    continue  # another run is delivering it
+                uow.commit()  # make the claim visible to other runs before the slow part
                 try:
-                    self._notifier.send(format_notification(row))
+                    self._notifier.send(text)
                 except Exception:
-                    log.exception("could not notify about contact message %s", row.id)
+                    log.exception("could not notify about contact message %s", message_id)
+                    uow.contacts.release(message_id)
+                    uow.commit()
                     return
-                row.notified = True
+                uow.contacts.mark_delivered(message_id)
                 uow.commit()

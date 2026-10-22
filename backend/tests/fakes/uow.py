@@ -394,6 +394,26 @@ class FakeContactRepository(AbstractContactRepository):
     def count_since(self, since: datetime, ip: str | None = None) -> int:
         return sum(1 for m in self._store.contacts if m.at > since and (ip is None or m.ip == ip))
 
+    def _find(self, message_id: int) -> ContactMessage | None:
+        return next((m for m in self._store.contacts if m.id == message_id), None)
+
+    def claim(self, message_id: int, now: datetime, stale_before: datetime) -> bool:
+        message = self._find(message_id)
+        if message is None or message.notified:
+            return False
+        if message.claimed_at is not None and message.claimed_at >= stale_before:
+            return False
+        message.claimed_at = now
+        return True
+
+    def release(self, message_id: int) -> None:
+        if (message := self._find(message_id)) is not None:
+            message.claimed_at = None
+
+    def mark_delivered(self, message_id: int) -> None:
+        if (message := self._find(message_id)) is not None:
+            message.notified, message.claimed_at = True, None
+
     def list_pending(self, since: datetime, limit: int) -> list[ContactMessage]:
         pending = [m for m in self._store.contacts if not m.notified and m.at > since]
         return sorted(pending, key=lambda m: m.id)[:limit]

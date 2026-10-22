@@ -189,3 +189,65 @@ def test_a_very_long_message_is_trimmed_in_the_notification_but_kept_whole_in_st
     assert len(notifier.sent[0]) <= 4096
     assert notifier.sent[0].count("y") == NOTIFICATION_BODY_LIMIT
     assert len(messages(fake_uow)[0].message) == 5000
+
+
+# -- overlapping delivery runs ------------------------------------------------------------
+
+
+def claim_like_another_run(uow: FakeUnitOfWork, message_id: int, clock: FakeClock) -> None:
+    with uow:
+        assert uow.contacts.claim(message_id, clock.now(), clock.now() - timedelta(minutes=5))
+        uow.commit()
+
+
+def test_a_message_another_run_is_already_delivering_is_not_sent_again(
+    service: ContactService,
+    notifier: FakeNotifier,
+    fake_uow: FakeUnitOfWork,
+    clock: FakeClock,
+) -> None:
+    message_id = send(service)
+    claim_like_another_run(fake_uow, message_id, clock)
+
+    service.deliver_pending()
+
+    assert notifier.sent == []
+    assert messages(fake_uow)[0].notified is False
+
+
+def test_if_the_other_run_crashed_the_message_is_delivered_once_its_claim_goes_stale(
+    service: ContactService,
+    notifier: FakeNotifier,
+    fake_uow: FakeUnitOfWork,
+    clock: FakeClock,
+) -> None:
+    message_id = send(service)
+    claim_like_another_run(fake_uow, message_id, clock)
+
+    clock.advance(6 * 60)
+    service.deliver_pending()
+
+    assert len(notifier.sent) == 1 and messages(fake_uow)[0].notified is True
+
+
+def test_a_failed_delivery_releases_the_message_so_the_next_run_can_retry_immediately(
+    service: ContactService, notifier: FakeNotifier, fake_uow: FakeUnitOfWork
+) -> None:
+    send(service)
+    notifier.fail = True
+    service.deliver_pending()
+    notifier.fail = False
+
+    service.deliver_pending()  # no 5-minute wait for a claim to expire
+
+    assert len(notifier.sent) == 1 and messages(fake_uow)[0].notified is True
+
+
+def test_two_runs_back_to_back_still_send_each_message_exactly_once(
+    service: ContactService, notifier: FakeNotifier
+) -> None:
+    send(service, "one")
+    send(service, "two")
+    service.deliver_pending()
+    service.deliver_pending()
+    assert len(notifier.sent) == 2

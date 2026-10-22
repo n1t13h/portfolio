@@ -19,3 +19,6 @@ class ContactMessage(Base):
     message: Mapped[str] = mapped_column(String)
     ip: Mapped[str] = mapped_column(String, default="")
     notified: Mapped[bool] = mapped_column(default=False)
+    # Set while a delivery run is telling the owner about this message, so overlapping runs
+    # never both send it; a claim older than the service's TTL is treated as a crashed run.
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

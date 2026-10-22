@@ -36,7 +36,11 @@ def test_a_complete_seed_on_a_real_database_then_a_second_run_changes_nothing(
     assert (again.imported, again.already_present, again.collections_created) == (0, 3, 0)
     db.expire_all()
     photos = {p.unsplash_id: p for p in db.scalars(select(Photo))}
-    assert [p.unsplash_id for p in sorted(photos.values(), key=lambda p: p.sort_position)] == ["c", "a", "b"]
+    assert [p.unsplash_id for p in sorted(photos.values(), key=lambda p: p.sort_position)] == [
+        "c",
+        "a",
+        "b",
+    ]
     assert all(p.status is Status.PUBLISHED for p in photos.values())
     collection = db.scalars(select(Collection)).one()
     assert collection.cover_photo_ids == [photos["a"].id, photos["c"].id]

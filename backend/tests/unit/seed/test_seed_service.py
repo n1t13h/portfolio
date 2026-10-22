@@ -253,7 +253,7 @@ def test_a_collection_that_already_exists_is_skipped_not_duplicated(
     assert after.title == "Renamed by the admin"
 
 
-def test_a_failure_while_building_a_collection_leaves_none_half_published_and_the_next_run_repairs_it(
+def test_a_collection_failing_midway_is_not_left_half_published_and_a_rerun_repairs_it(
     seed_file: Path,
     fake_uow: FakeUnitOfWork,
     storage: FakeStorage,

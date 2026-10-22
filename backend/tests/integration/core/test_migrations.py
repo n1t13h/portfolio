@@ -71,3 +71,27 @@ def test_migration_0004_works_on_a_database_that_already_has_an_admin(tmp_path: 
 
     with engine.connect() as conn:
         assert conn.execute(text("select session_version from admin")).scalar() == 0
+
+
+def test_migration_0005_works_on_a_database_that_already_has_contact_messages(
+    tmp_path: Path,
+) -> None:
+    from sqlalchemy import text
+
+    url = f"sqlite:///{tmp_path / 'upgrade5.db'}"
+    cfg = Config(str(Path(__file__).parents[3] / "alembic.ini"))
+    cfg.set_main_option("sqlalchemy.url", url)
+    command.upgrade(cfg, "0004")
+    engine = create_engine(url)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into contact_message (at, name, email, message, ip, notified)"
+                " values ('2026-01-01 12:00:00', 'A', 'a@b.co', 'hi', '1.1.1.1', 0)"
+            )
+        )
+
+    command.upgrade(cfg, "head")
+
+    with engine.connect() as conn:
+        assert conn.execute(text("select claimed_at from contact_message")).scalar() is None
