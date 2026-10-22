@@ -13,6 +13,7 @@ from app.core.limits import BodySizeLimitMiddleware
 from app.integrations.notifier import Notifier, build_notifier
 from app.integrations.storage import R2Storage, Storage
 from app.integrations.unsplash import HttpxUnsplashClient, UnsplashClient
+from app.uow import SqlAlchemyUnitOfWork
 
 
 def create_app(
@@ -38,6 +39,7 @@ def create_app(
     engine = make_engine(settings.database_url)
     app.state.engine = engine
     app.state.session_factory = make_session_factory(engine)
+    app.state.uow_factory = lambda: SqlAlchemyUnitOfWork(app.state.session_factory)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,

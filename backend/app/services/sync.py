@@ -21,6 +21,7 @@ from app.integrations.unsplash import RateLimited, UnsplashClient
 from app.models import Photo, SyncState
 from app.services.photos import PhotoService
 from app.services.sync_state import state_row
+from app.uow import SqlAlchemyUnitOfWork
 
 log = logging.getLogger(__name__)
 
@@ -152,7 +153,9 @@ class SyncService:
             queue = [*progress.pending, *reversed(found)]
             for unsplash_id in queue:
                 progress.pending.setdefault(unsplash_id, 0)
-            photos = PhotoService(db, self._storage, self._settings)
+            photos = PhotoService(
+                lambda: SqlAlchemyUnitOfWork(self._sessions), self._storage, self._settings
+            )
             for unsplash_id in dict.fromkeys(queue):
                 remaining = self._client.rate_limit_remaining
                 if remaining is not None and remaining < REQUESTS_PER_PHOTO:

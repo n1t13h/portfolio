@@ -254,11 +254,14 @@ def test_photos_already_synced_from_unsplash_are_reused_not_duplicated(
     db: Session,
 ) -> None:
     from app.services.photos import PhotoService
+    from app.uow import SqlAlchemyUnitOfWork
     from tests.support.images import make_jpeg
 
-    synced = PhotoService(db, storage, settings).ingest_jpeg(
-        make_jpeg((60, 40)), title="Synced title", unsplash_id="a"
-    )
+    synced = PhotoService(
+        lambda: SqlAlchemyUnitOfWork(client.app.state.session_factory),  # type: ignore[attr-defined]
+        storage,
+        settings,
+    ).ingest_jpeg(make_jpeg((60, 40)), title="Synced title", unsplash_id="a")
     report = seed(seed_file, client, storage, settings, unsplash)
 
     assert report.already_present == 1 and report.imported == 2

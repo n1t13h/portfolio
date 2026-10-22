@@ -1,48 +1,48 @@
+"""PhotoService against a real database. The rules themselves are unit tested with fakes in
+tests/unit/photos; these cover what only the real database can prove."""
+
 import pytest
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.core.config import Settings
-from app.services.images import InvalidImage
+from app.core.db import Base, make_engine, make_session_factory
+from app.models import Photo
 from app.services.photos import PhotoService
+from app.uow import SqlAlchemyUnitOfWork
 from tests.fakes import FakeStorage
 from tests.support.images import make_jpeg
 
 
-def test_ingest_rejects_files_over_the_upload_limit(
-    db: Session, storage: FakeStorage, settings: Settings
+@pytest.fixture
+def service(storage: FakeStorage, settings: Settings) -> PhotoService:
+    engine = make_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    sessions = make_session_factory(engine)
+    return PhotoService(lambda: SqlAlchemyUnitOfWork(sessions), storage, settings)
+
+
+def test_a_duplicate_unsplash_id_is_refused_by_the_database_and_leaves_no_orphaned_files(
+    service: PhotoService, storage: FakeStorage
 ) -> None:
-    small = settings.model_copy(update={"max_upload_bytes": 500})
-    with pytest.raises(InvalidImage, match="too large"):
-        PhotoService(db, storage, small).ingest_jpeg(make_jpeg((400, 400)))
-    assert storage.objects == {}
-
-
-def test_failed_insert_removes_the_files_it_wrote_and_leaves_the_session_usable(
-    db: Session, storage: FakeStorage, settings: Settings
-) -> None:
-    from sqlalchemy.exc import IntegrityError
-
-    photos = PhotoService(db, storage, settings)
-    photos.ingest_jpeg(make_jpeg((60, 40)), unsplash_id="dup")
+    service.ingest_jpeg(make_jpeg((60, 40)), unsplash_id="dup")
     before = dict(storage.objects)
 
     with pytest.raises(IntegrityError):
-        photos.ingest_jpeg(make_jpeg((60, 40)), unsplash_id="dup")
+        service.ingest_jpeg(make_jpeg((60, 40)), unsplash_id="dup")
 
     assert storage.objects == before  # nothing orphaned in R2
-    photos.ingest_jpeg(make_jpeg((60, 40)), unsplash_id="other")  # and later photos still work
+    service.ingest_jpeg(make_jpeg((60, 40)), unsplash_id="other")  # and the service still works
 
 
-def test_delete_succeeds_even_when_removing_files_from_r2_fails(
-    db: Session, storage: FakeStorage, settings: Settings
+def test_deleting_through_the_real_database_removes_the_row_and_frees_the_unsplash_id(
+    service: PhotoService, storage: FakeStorage
 ) -> None:
-    photos = PhotoService(db, storage, settings)
-    photo = photos.ingest_jpeg(make_jpeg((60, 40)))
+    photo = service.ingest_jpeg(make_jpeg((60, 40)), unsplash_id="u1")
+    service.delete(photo.id)
+    assert service.list_all() == []
+    assert not storage.objects
 
-    def boom(*args: object) -> None:
-        raise RuntimeError("r2 unreachable")
 
-    storage.delete = boom  # type: ignore[method-assign, assignment]
-    photos.delete(photo.id)  # no exception: a leftover file is harmless, a dangling row is not
-
-    assert photos.list_all() == []
+def test_the_photo_entity_is_not_leaked_out_of_the_service(service: PhotoService) -> None:
+    photo = service.ingest_jpeg(make_jpeg((60, 40)))
+    assert not isinstance(photo, Photo)  # callers get a schema, never a session-bound entity

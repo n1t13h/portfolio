@@ -55,12 +55,8 @@ def get_auditor(request: Request, session: Session = Depends(get_session)) -> Au
     return Auditor(session, request.app.state.clock, client_ip(request))
 
 
-def get_photo_service(
-    request: Request,
-    session: Session = Depends(get_session),
-    storage: Storage = Depends(get_storage),
-) -> PhotoService:
-    return PhotoService(session, storage, request.app.state.settings)
+def get_photo_service(request: Request, storage: Storage = Depends(get_storage)) -> PhotoService:
+    return PhotoService(request.app.state.uow_factory, storage, request.app.state.settings)
 
 
 def get_collection_service(session: Session = Depends(get_session)) -> CollectionService:

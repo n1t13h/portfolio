@@ -3,19 +3,18 @@
 import logging
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from typing import Any
-
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.integrations.storage import Bucket, Storage
 from app.models import Photo, Status
+from app.schemas.photos import PhotoOut, UploadTicketOut
 from app.services import sync_state
 from app.services.images import InvalidImage, process_jpeg
+from app.services.mappers import admin_photo
 from app.services.ordering import apply_order
+from app.uow import AbstractUnitOfWork, UnitOfWorkFactory
 
 log = logging.getLogger(__name__)
 
@@ -28,31 +27,27 @@ def original_key(photo_id: str) -> str:
     return f"originals/{photo_id}.jpg"
 
 
-@dataclass(frozen=True)
-class UploadTicket:
-    photo_id: str
-    put_url: str
-    key: str
-
-
 class PhotoService:
-    def __init__(self, session: Session, storage: Storage, settings: Settings) -> None:
-        self._db = session
+    def __init__(
+        self, uow_factory: UnitOfWorkFactory, storage: Storage, settings: Settings
+    ) -> None:
+        self._uow = uow_factory
         self._storage = storage
         self._settings = settings
 
     # -- upload ---------------------------------------------------------------------------
 
-    def request_upload(self) -> UploadTicket:
+    def request_upload(self) -> UploadTicketOut:
         photo_id = uuid.uuid4().hex
         key = original_key(photo_id)
         url = self._storage.presign_put(Bucket.PRIVATE, key, "image/jpeg", UPLOAD_URL_TTL_SECONDS)
-        return UploadTicket(photo_id, url, key)
+        return UploadTicketOut(photo_id=photo_id, put_url=url, key=key)
 
-    def confirm_upload(self, photo_id: str) -> Photo:
+    def confirm_upload(self, photo_id: str) -> PhotoOut:
         """Process a file the browser has PUT to the private bucket and create the photo."""
-        if self._db.get(Photo, photo_id) is not None:
-            raise Conflict("already confirmed")
+        with self._uow() as uow:
+            if uow.photos.get(photo_id) is not None:
+                raise Conflict("already confirmed")
         key = original_key(photo_id)
         if not self._storage.exists(Bucket.PRIVATE, key):
             raise NotFound("no uploaded file for this id")
@@ -73,10 +68,15 @@ class PhotoService:
         store_original: bool = True,
         title: str = "",
         place: str | None = None,
+        status: Status = Status.DRAFT,
+        exif_fallback: Mapping[str, Any] | None = None,
         unsplash_id: str | None = None,
         unsplash_url: str | None = None,
-    ) -> Photo:
-        """Process JPEG bytes, store every file in R2 and insert a draft photo."""
+    ) -> PhotoOut:
+        """Process JPEG bytes, store every file in R2 and save the photo in one transaction.
+
+        `exif_fallback` fills metadata the file itself lacks; the file's own EXIF wins.
+        """
         if len(data) > self._settings.max_upload_bytes:
             raise InvalidImage("file too large")
         processed = process_jpeg(data, max_pixels=self._settings.max_image_pixels)
@@ -98,74 +98,93 @@ class PhotoService:
             )
             written.append((Bucket.PRIVATE, download_key))
 
-            photo = Photo(
-                id=pid,
-                title=title,
-                place=place,
-                aspect_ratio=processed.aspect_ratio,
-                exif=processed.exif,
-                taken_at=processed.taken_at,
-                sort_position=self._next_position(),
-                original_key=original_key(pid),
-                variant_keys=variant_keys,
-                download_key=download_key,
-                unsplash_id=unsplash_id,
-                unsplash_url=unsplash_url,
-            )
-            self._db.add(photo)
-            self._db.commit()
+            with self._uow() as uow:
+                photo = Photo(
+                    id=pid,
+                    title=title,
+                    place=place,
+                    aspect_ratio=processed.aspect_ratio,
+                    exif={**(exif_fallback or {}), **processed.exif},
+                    taken_at=processed.taken_at,
+                    status=status,
+                    sort_position=uow.photos.next_sort_position(),
+                    original_key=original_key(pid),
+                    variant_keys=variant_keys,
+                    download_key=download_key,
+                    unsplash_id=unsplash_id,
+                    unsplash_url=unsplash_url,
+                )
+                uow.photos.add(photo)
+                uow.commit()
+                return admin_photo(photo, self._storage)
         except Exception:
-            self._db.rollback()  # keep the caller's session usable
-            self._remove_quietly(written)  # and leave no orphaned files behind
+            self._remove_quietly(written)  # leave no orphaned files behind
             raise
-        return photo
 
     # -- read / edit ----------------------------------------------------------------------
 
-    def list_all(self) -> Sequence[Photo]:
-        stmt = select(Photo).order_by(Photo.sort_position, Photo.created_at, Photo.id)
-        return self._db.scalars(stmt).all()
+    def list_all(self) -> list[PhotoOut]:
+        with self._uow() as uow:
+            return [admin_photo(p, self._storage) for p in uow.photos.list_ordered()]
 
-    def get(self, photo_id: str) -> Photo:
-        photo = self._db.get(Photo, photo_id)
-        if photo is None:
-            raise NotFound("photo not found")
-        return photo
+    def get(self, photo_id: str) -> PhotoOut:
+        with self._uow() as uow:
+            return admin_photo(self._get(uow, photo_id), self._storage)
 
-    def update(self, photo_id: str, changes: Mapping[str, Any]) -> Photo:
+    def update(self, photo_id: str, changes: Mapping[str, Any]) -> PhotoOut:
         if not set(changes) <= EDITABLE_FIELDS:
             raise InvalidRequest(f"only {sorted(EDITABLE_FIELDS)} can be edited")
         if "title" in changes and changes["title"] is None:
             raise InvalidRequest("title cannot be null")  # place may be cleared; title may not
-        photo = self.get(photo_id)
-        for name, value in changes.items():
-            setattr(photo, name, value)
-        self._db.commit()
-        return photo
+        with self._uow() as uow:
+            photo = self._get(uow, photo_id)
+            for name, value in changes.items():
+                setattr(photo, name, value)
+            uow.commit()
+            return admin_photo(photo, self._storage)
 
-    def set_status(self, photo_id: str, status: Status) -> Photo:
-        photo = self.get(photo_id)
-        photo.status = status
-        self._db.commit()
-        return photo
+    def set_status(self, photo_id: str, status: Status) -> PhotoOut:
+        with self._uow() as uow:
+            photo = self._get(uow, photo_id)
+            photo.status = status
+            uow.commit()
+            return admin_photo(photo, self._storage)
 
-    def set_allow_download(self, photo_id: str, allow: bool) -> Photo:
-        photo = self.get(photo_id)
-        photo.allow_download = allow
-        self._db.commit()
-        return photo
+    def set_allow_download(self, photo_id: str, allow: bool) -> PhotoOut:
+        with self._uow() as uow:
+            photo = self._get(uow, photo_id)
+            photo.allow_download = allow
+            uow.commit()
+            return admin_photo(photo, self._storage)
 
     def delete(self, photo_id: str) -> None:
-        photo = self.get(photo_id)
-        doomed = [(Bucket.PUBLIC, key) for key in photo.variant_keys.values()]
-        doomed += [(Bucket.PRIVATE, key) for key in (photo.original_key, photo.download_key) if key]
-        if photo.unsplash_id:  # so the next sync does not bring it back
-            sync_state.skip(self._db, photo.unsplash_id, "deleted")
-        self._db.delete(photo)
-        self._db.commit()
+        with self._uow() as uow:
+            photo = self._get(uow, photo_id)
+            doomed = [(Bucket.PUBLIC, key) for key in photo.variant_keys.values()]
+            doomed += [
+                (Bucket.PRIVATE, key) for key in (photo.original_key, photo.download_key) if key
+            ]
+            if photo.unsplash_id:  # so the next sync does not bring it back
+                sync_state.skip(uow.sync_state.get_or_create(), photo.unsplash_id, "deleted")
+            uow.photos.delete(photo)
+            uow.commit()
         # Files go last and best-effort: a leftover file is harmless, a row pointing at
         # deleted files would show visitors broken images.
         self._remove_quietly(doomed)
+
+    def reorder(self, ordered_ids: Sequence[str]) -> None:
+        with self._uow() as uow:
+            apply_order(uow.photos.list_ordered(), ordered_ids, "sort_position")
+            uow.commit()
+
+    # -- helpers --------------------------------------------------------------------------
+
+    @staticmethod
+    def _get(uow: AbstractUnitOfWork, photo_id: str) -> Photo:
+        photo = uow.photos.get(photo_id)
+        if photo is None:
+            raise NotFound("photo not found")
+        return photo
 
     def _remove_quietly(self, objects: Sequence[tuple[Bucket, str]]) -> None:
         for bucket, key in objects:
@@ -173,11 +192,3 @@ class PhotoService:
                 self._storage.delete(bucket, key)
             except Exception:
                 log.warning("could not remove %s/%s from storage", bucket.value, key, exc_info=True)
-
-    def reorder(self, ordered_ids: Sequence[str]) -> None:
-        apply_order(self.list_all(), ordered_ids, "sort_position")
-        self._db.commit()
-
-    def _next_position(self) -> int:
-        highest = self._db.scalar(select(func.max(Photo.sort_position)))
-        return 0 if highest is None else highest + 1

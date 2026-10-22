@@ -17,9 +17,11 @@ from app.core.config import Settings
 from app.integrations.storage import Storage
 from app.integrations.unsplash import API_BASE, RateLimited, UnsplashClient, UnsplashPhoto
 from app.models import Collection, Photo, Status
+from app.schemas.photos import PhotoOut
 from app.schemas.seed import SeedData, SeedPhoto
 from app.services.collections import CollectionService
 from app.services.photos import PhotoService
+from app.uow import SqlAlchemyUnitOfWork
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ def seed_from_json(
     report = SeedReport()
 
     with sessions() as db:
-        photos = PhotoService(db, storage, settings)
+        photos = PhotoService(lambda: SqlAlchemyUnitOfWork(sessions), storage, settings)
         known = db.execute(
             select(Photo.unsplash_id, Photo.id).where(Photo.unsplash_id.is_not(None))
         )
@@ -58,7 +60,7 @@ def seed_from_json(
                 continue
             try:
                 photo = _import_one(
-                    db, photos, unsplash, snapshot[unsplash_id], unsplash_id in data.excluded
+                    photos, unsplash, snapshot[unsplash_id], unsplash_id in data.excluded
                 )
             except RateLimited:
                 report.remaining += [i for i in ordered[index:] if i not in by_unsplash_id]
@@ -85,12 +87,8 @@ def seed_from_json(
 
 
 def _import_one(
-    db: Session,
-    photos: PhotoService,
-    unsplash: UnsplashClient,
-    source: SeedPhoto,
-    excluded: bool,
-) -> Photo:
+    photos: PhotoService, unsplash: UnsplashClient, source: SeedPhoto, excluded: bool
+) -> PhotoOut:
     # /photos/{id}/download both reports the download and returns the file URL, so the
     # per-photo details request is unnecessary: about one API request per photo.
     ref = UnsplashPhoto(
@@ -100,18 +98,17 @@ def _import_one(
         html_url=source.unsplash_url,
         download_location=f"{API_BASE}/photos/{source.id}/download",
     )
-    photo = photos.ingest_jpeg(
+    # One transaction creates the photo in its final state. The file's own EXIF wins; the
+    # snapshot fills whatever the file lacks.
+    return photos.ingest_jpeg(
         unsplash.download_original(ref),
         title=source.title,
         place=source.place,
+        status=Status.DRAFT if excluded else Status.PUBLISHED,
+        exif_fallback=_snake_case_exif(source.exif or {}),
         unsplash_id=source.id,
         unsplash_url=source.unsplash_url,
     )
-    # The file's own EXIF wins; the snapshot fills whatever the file lacks.
-    photo.exif = {**_snake_case_exif(source.exif or {}), **photo.exif}
-    photo.status = Status.DRAFT if excluded else Status.PUBLISHED
-    db.commit()
-    return photo
 
 
 def _snake_case_exif(exif: dict[str, Any]) -> dict[str, Any]:
