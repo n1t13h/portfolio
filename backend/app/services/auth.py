@@ -18,7 +18,7 @@ from app.core.security import (
 )
 from app.models import Admin, LoginFailure
 from app.schemas.auth import AdminOut
-from app.services import audit
+from app.services.audit import AuditTrail
 from app.uow import AbstractUnitOfWork, UnitOfWorkFactory
 
 RECOVERY_CODE_COUNT = 10
@@ -97,6 +97,7 @@ class AuthService:
     def login(self, username: str, password: str, code: str, ip: str) -> str:
         """Returns a session token, or raises LockedOut / InvalidCredentials."""
         key = f"{ip}|{username.lower()}"
+        trail = AuditTrail(self._clock, ip)
         with self._uow() as uow:
             # Keep the table small: usernames are attacker-chosen, so failures must expire.
             uow.login_failures.delete_up_to(self._window_start())
@@ -114,12 +115,12 @@ class AuthService:
             # cannot use up valid TOTP steps.
             if admin is None or not password_ok or not self._check_second_factor(admin, code):
                 uow.login_failures.add(LoginFailure(key=key, at=self._clock.now()))
-                uow.audit.add(audit.entry(self._clock, "login_failed", username, ip))
+                trail.record(uow, "login_failed", username)
                 uow.commit()
                 raise InvalidCredentials
 
             uow.login_failures.delete_for_key(key)
-            uow.audit.add(audit.entry(self._clock, "login", username, ip))
+            trail.record(uow, "login", username)
             uow.commit()
             return self._signer.issue(admin.id, admin.session_version)
 

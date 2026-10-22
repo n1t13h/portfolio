@@ -397,3 +397,25 @@ def test_a_photo_the_admin_deletes_during_a_run_is_not_forgotten_by_the_run(
     unsplash.get_calls.clear()
     service.run(full=True)
     assert "k" not in photos(fake_uow) and "k" not in unsplash.get_calls
+
+
+def test_starting_a_manual_sync_is_audited_in_the_same_transaction_as_taking_the_lock(
+    service: SyncService, fake_uow: FakeUnitOfWork, clock: FakeClock
+) -> None:
+    from app.services.audit import AuditTrail
+
+    service.acquire(AuditTrail(clock, "9.9.9.9"), "full")
+
+    [entry] = fake_uow.store.audit
+    assert (entry.action, entry.target, entry.ip) == ("sync.start", "full", "9.9.9.9")
+
+
+def test_a_refused_start_is_not_audited_and_the_timer_style_start_is_not_either(
+    service: SyncService, fake_uow: FakeUnitOfWork, clock: FakeClock
+) -> None:
+    from app.services.audit import AuditTrail
+
+    service.acquire()  # the scheduled run: no admin involved
+    with pytest.raises(SyncAlreadyRunning):
+        service.acquire(AuditTrail(clock, "9.9.9.9"), "incremental")
+    assert fake_uow.store.audit == []

@@ -18,6 +18,7 @@ from app.core.errors import Conflict
 from app.integrations.storage import Storage
 from app.integrations.unsplash import RateLimited, UnsplashClient
 from app.schemas.sync import SyncStatusOut
+from app.services.audit import NO_AUDIT, AuditTrail
 from app.services.photos import PhotoService
 from app.uow import UnitOfWorkFactory
 
@@ -69,8 +70,12 @@ class SyncService:
 
     # -- locking --------------------------------------------------------------------------
 
-    def acquire(self) -> None:
-        """Take the run lock, or raise SyncAlreadyRunning. Atomic across processes."""
+    def acquire(self, audit: AuditTrail = NO_AUDIT, detail: str = "") -> None:
+        """Take the run lock, or raise SyncAlreadyRunning. Atomic across processes.
+
+        A manual start from the admin passes an `audit` trail, so "sync.start" is recorded in
+        the same transaction as the lock; scheduled runs record nothing.
+        """
         now = self._clock.now()
         with self._uow() as uow:
             try:
@@ -80,6 +85,7 @@ class SyncService:
                 uow.rollback()
             if not uow.sync_state.try_acquire(now, now - STALE_LOCK):
                 raise SyncAlreadyRunning
+            audit.record(uow, "sync.start", detail)
             uow.commit()
 
     def status(self) -> SyncStatusOut:

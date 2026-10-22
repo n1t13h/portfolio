@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, Response
 
-from app.api.admin.deps import Auditor, get_auditor, get_collection_service
+from app.api.admin.deps import get_collection_service
 from app.api.params import ResourceId
 from app.models import Status
 from app.schemas.collections import (
@@ -29,10 +29,8 @@ def list_collections(
 def create(
     body: CollectionCreate,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> CollectionOut:
     collection = collections.create_collection(**body.model_dump())
-    audit("collection.create", collection.id)
     return collection
 
 
@@ -40,10 +38,8 @@ def create(
 def reorder(
     body: IdsBody,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> Response:
     collections.reorder_collections(body.ids)
-    audit("collection.reorder")
     return Response(status_code=204)
 
 
@@ -59,10 +55,8 @@ def update(
     collection_id: ResourceId,
     body: CollectionPatch,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> CollectionOut:
     collection = collections.update_collection(collection_id, body.model_dump(exclude_unset=True))
-    audit("collection.update", collection_id)
     return collection
 
 
@@ -70,10 +64,8 @@ def update(
 def delete(
     collection_id: ResourceId,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> Response:
     collections.delete_collection(collection_id)
-    audit("collection.delete", collection_id)
     return Response(status_code=204)
 
 
@@ -81,10 +73,8 @@ def delete(
 def publish(
     collection_id: ResourceId,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> CollectionOut:
     collection = collections.set_status(collection_id, Status.PUBLISHED)
-    audit("collection.publish", collection_id)
     return collection
 
 
@@ -92,10 +82,8 @@ def publish(
 def unpublish(
     collection_id: ResourceId,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> CollectionOut:
     collection = collections.set_status(collection_id, Status.DRAFT)
-    audit("collection.unpublish", collection_id)
     return collection
 
 
@@ -104,10 +92,8 @@ def set_covers(
     collection_id: ResourceId,
     body: PhotoIdsBody,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> CollectionOut:
     collection = collections.set_covers(collection_id, body.photo_ids)
-    audit("collection.covers", collection_id)
     return collection
 
 
@@ -116,10 +102,8 @@ def create_chapter(
     collection_id: ResourceId,
     body: ChapterCreate,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> ChapterOut:
     chapter = collections.create_chapter(collection_id, body.title, body.note)
-    audit("chapter.create", chapter.id)
     return chapter
 
 
@@ -128,8 +112,6 @@ def reorder_chapters(
     collection_id: ResourceId,
     body: IdsBody,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> Response:
     collections.reorder_chapters(collection_id, body.ids)
-    audit("chapter.reorder", collection_id)
     return Response(status_code=204)

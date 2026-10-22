@@ -1,23 +1,34 @@
-"""The audit log: who did what, when and from where."""
+"""The audit log: who did what, when and from where.
 
-from app.core.clock import Clock
+Entries are written into the *caller's* transaction, so a change and its record are saved
+together or not at all.
+"""
+
+from app.core.clock import Clock, SystemClock
 from app.models import AuditLog
-from app.uow import UnitOfWorkFactory
+from app.uow import AbstractUnitOfWork
 
 
-def entry(clock: Clock, action: str, target: str = "", ip: str = "") -> AuditLog:
-    """An audit row, for services that record it inside their own transaction."""
-    return AuditLog(at=clock.now(), action=action, target=target, ip=ip)
+class AuditTrail:
+    """Records admin actions for one request (its client IP is fixed when it is built)."""
 
-
-class AuditService:
-    """Records one entry in its own transaction (for admin actions that already committed)."""
-
-    def __init__(self, uow_factory: UnitOfWorkFactory, clock: Clock) -> None:
-        self._uow = uow_factory
+    def __init__(self, clock: Clock, ip: str = "") -> None:
         self._clock = clock
+        self._ip = ip
 
-    def record(self, action: str, target: str = "", ip: str = "") -> None:
-        with self._uow() as uow:
-            uow.audit.add(entry(self._clock, action, target, ip))
-            uow.commit()
+    def record(self, uow: AbstractUnitOfWork, action: str, target: str = "") -> None:
+        """Add an entry to `uow`. The caller commits; nothing is saved if it does not."""
+        uow.audit.add(AuditLog(at=self._clock.now(), action=action, target=target, ip=self._ip))
+
+
+class _NullAuditTrail(AuditTrail):
+    """For work that is not an admin action (CLI, scheduled sync, seed): records nothing."""
+
+    def __init__(self) -> None:
+        super().__init__(SystemClock())
+
+    def record(self, uow: AbstractUnitOfWork, action: str, target: str = "") -> None:
+        return None
+
+
+NO_AUDIT = _NullAuditTrail()

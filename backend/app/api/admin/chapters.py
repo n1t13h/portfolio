@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, Response
 
-from app.api.admin.deps import Auditor, get_auditor, get_collection_service
+from app.api.admin.deps import get_collection_service
 from app.api.params import ResourceId
 from app.schemas.collections import ChapterOut, ChapterPatch
 from app.schemas.common import IdsBody, PhotoIdsBody
@@ -16,10 +16,8 @@ def update(
     chapter_id: ResourceId,
     body: ChapterPatch,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> ChapterOut:
     chapter = collections.update_chapter(chapter_id, body.model_dump(exclude_unset=True))
-    audit("chapter.update", chapter_id)
     return chapter
 
 
@@ -27,10 +25,8 @@ def update(
 def delete(
     chapter_id: ResourceId,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> Response:
     collections.delete_chapter(chapter_id)
-    audit("chapter.delete", chapter_id)
     return Response(status_code=204)
 
 
@@ -39,10 +35,8 @@ def assign_photos(
     chapter_id: ResourceId,
     body: PhotoIdsBody,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> ChapterOut:
     chapter = collections.assign_photos(chapter_id, body.photo_ids)
-    audit("chapter.assign_photos", chapter_id)
     return chapter
 
 
@@ -51,10 +45,8 @@ def reorder_photos(
     chapter_id: ResourceId,
     body: IdsBody,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> Response:
     collections.reorder_photos(chapter_id, body.ids)
-    audit("chapter.reorder_photos", chapter_id)
     return Response(status_code=204)
 
 
@@ -63,8 +55,6 @@ def remove_photo(
     chapter_id: ResourceId,
     photo_id: ResourceId,
     collections: CollectionService = Depends(get_collection_service),
-    audit: Auditor = Depends(get_auditor),
 ) -> Response:
     collections.remove_photo(chapter_id, photo_id)
-    audit("chapter.remove_photo", f"{chapter_id}/{photo_id}")
     return Response(status_code=204)

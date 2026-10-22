@@ -5,8 +5,9 @@ import pytest
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.models import Status
 from app.schemas.collections import ChapterDraft, CollectionOut
+from app.services.audit import AuditTrail
 from app.services.collections import CollectionService
-from tests.fakes import FakeUnitOfWork
+from tests.fakes import FakeClock, FakeUnitOfWork
 from tests.support.builders import make_photo
 
 
@@ -463,3 +464,64 @@ def test_building_a_collection_moves_photos_out_of_their_old_chapters_and_covers
 
     assert service.get_collection(old.id).cover_photo_ids == []
     assert [c.photo_ids for c in service.get_collection(old.id).chapters] == [[]]
+
+
+# -- audit: recorded in the same transaction as the change --------------------------------
+
+
+def test_every_collection_and_chapter_change_is_audited_with_the_ip(
+    fake_uow: FakeUnitOfWork, clock: FakeClock
+) -> None:
+    add_photos(fake_uow, "p1", "p2")
+    audited = CollectionService(lambda: fake_uow, AuditTrail(clock, "9.9.9.9"))
+
+    col = audited.create_collection("goa", "Goa")
+    audited.update_collection(col.id, {"title": "Goa 2024"})
+    audited.set_status(col.id, Status.PUBLISHED)
+    audited.set_status(col.id, Status.DRAFT)
+    first = audited.create_chapter(col.id, "A")
+    second = audited.create_chapter(col.id, "B")
+    audited.update_chapter(first.id, {"note": "n"})
+    audited.assign_photos(first.id, ["p1", "p2"])
+    audited.reorder_photos(first.id, ["p2", "p1"])
+    audited.set_covers(col.id, ["p1"])
+    audited.remove_photo(first.id, "p2")
+    audited.reorder_chapters(col.id, [second.id, first.id])
+    audited.delete_chapter(second.id)
+    audited.reorder_collections([col.id])
+    audited.delete_collection(col.id)
+
+    assert [(e.action, e.ip) for e in fake_uow.store.audit] == [
+        ("collection.create", "9.9.9.9"),
+        ("collection.update", "9.9.9.9"),
+        ("collection.publish", "9.9.9.9"),
+        ("collection.unpublish", "9.9.9.9"),
+        ("chapter.create", "9.9.9.9"),
+        ("chapter.create", "9.9.9.9"),
+        ("chapter.update", "9.9.9.9"),
+        ("chapter.assign_photos", "9.9.9.9"),
+        ("chapter.reorder_photos", "9.9.9.9"),
+        ("collection.covers", "9.9.9.9"),
+        ("chapter.remove_photo", "9.9.9.9"),
+        ("chapter.reorder", "9.9.9.9"),
+        ("chapter.delete", "9.9.9.9"),
+        ("collection.reorder", "9.9.9.9"),
+        ("collection.delete", "9.9.9.9"),
+    ]
+    assert fake_uow.store.audit[0].target == col.id
+    assert fake_uow.store.audit[10].target == f"{first.id}/p2"
+
+
+def test_a_refused_change_leaves_no_audit_entry(fake_uow: FakeUnitOfWork, clock: FakeClock) -> None:
+    audited = CollectionService(lambda: fake_uow, AuditTrail(clock))
+    audited.create_collection("goa", "Goa")
+    with pytest.raises(Conflict):
+        audited.create_collection("goa", "Again")
+    assert [e.action for e in fake_uow.store.audit] == ["collection.create"]
+
+
+def test_without_a_trail_nothing_is_audited(
+    service: CollectionService, fake_uow: FakeUnitOfWork
+) -> None:
+    collection(service)
+    assert fake_uow.store.audit == []

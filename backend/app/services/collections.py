@@ -8,6 +8,7 @@ from typing import Any
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.models import Chapter, Collection, Status
 from app.schemas.collections import SLUG_PATTERN, ChapterDraft, ChapterOut, CollectionOut
+from app.services.audit import NO_AUDIT, AuditTrail
 from app.services.covers import prune_covers
 from app.services.ordering import apply_order
 from app.uow import AbstractUnitOfWork, UnitOfWorkFactory
@@ -25,8 +26,9 @@ def _checked_changes(changes: Mapping[str, Any], allowed: set[str]) -> Mapping[s
 
 
 class CollectionService:
-    def __init__(self, uow_factory: UnitOfWorkFactory) -> None:
+    def __init__(self, uow_factory: UnitOfWorkFactory, audit: AuditTrail = NO_AUDIT) -> None:
         self._uow = uow_factory
+        self._audit = audit
 
     # -- collections ----------------------------------------------------------------------
 
@@ -53,6 +55,7 @@ class CollectionService:
                 sort_position=uow.collections.next_sort_position(),
             )
             uow.collections.add(collection)
+            self._audit.record(uow, "collection.create", collection.id)
             uow.commit()
             return CollectionOut.model_validate(collection)
 
@@ -105,6 +108,7 @@ class CollectionService:
             collection.cover_photo_ids = list(cover_photo_ids)
             uow.flush()
             prune_covers(uow, left - {collection.id})
+            self._audit.record(uow, "collection.create", collection.id)
             uow.commit()
             return CollectionOut.model_validate(self._collection(uow, collection.id))
 
@@ -116,6 +120,7 @@ class CollectionService:
                 self._check_slug(uow, changes["slug"], ignore_id=collection_id)
             for name, value in changes.items():
                 setattr(collection, name, value)
+            self._audit.record(uow, "collection.update", collection_id)
             uow.commit()
             return CollectionOut.model_validate(collection)
 
@@ -123,6 +128,10 @@ class CollectionService:
         with self._uow() as uow:
             collection = self._collection(uow, collection_id)
             collection.status = status
+            published = status is Status.PUBLISHED
+            self._audit.record(
+                uow, "collection.publish" if published else "collection.unpublish", collection_id
+            )
             uow.commit()
             return CollectionOut.model_validate(collection)
 
@@ -132,11 +141,13 @@ class CollectionService:
             chapter_ids = [ch.id for ch in uow.collections.list_chapters(collection_id)]
             uow.photos.unassign_from_chapters(chapter_ids)
             uow.collections.delete(collection)
+            self._audit.record(uow, "collection.delete", collection_id)
             uow.commit()
 
     def reorder_collections(self, ordered_ids: Sequence[str]) -> None:
         with self._uow() as uow:
             apply_order(uow.collections.list_ordered(), ordered_ids, "sort_position")
+            self._audit.record(uow, "collection.reorder")
             uow.commit()
 
     def set_covers(self, collection_id: str, photo_ids: Sequence[str]) -> CollectionOut:
@@ -144,6 +155,7 @@ class CollectionService:
             collection = self._collection(uow, collection_id)
             self._check_covers(photo_ids, uow.photos.ids_in_collection(collection_id))
             collection.cover_photo_ids = list(photo_ids)
+            self._audit.record(uow, "collection.covers", collection_id)
             uow.commit()
             return CollectionOut.model_validate(collection)
 
@@ -160,6 +172,7 @@ class CollectionService:
                 position=uow.collections.next_chapter_position(collection_id),
             )
             uow.collections.add_chapter(chapter)
+            self._audit.record(uow, "chapter.create", chapter.id)
             uow.commit()
             return ChapterOut.model_validate(chapter)
 
@@ -169,6 +182,7 @@ class CollectionService:
             chapter = self._chapter(uow, chapter_id)
             for name, value in changes.items():
                 setattr(chapter, name, value)
+            self._audit.record(uow, "chapter.update", chapter_id)
             uow.commit()
             return ChapterOut.model_validate(chapter)
 
@@ -180,12 +194,14 @@ class CollectionService:
             uow.collections.delete_chapter(chapter)
             uow.flush()
             prune_covers(uow, {collection_id})
+            self._audit.record(uow, "chapter.delete", chapter_id)
             uow.commit()
 
     def reorder_chapters(self, collection_id: str, ordered_ids: Sequence[str]) -> None:
         with self._uow() as uow:
             self._collection(uow, collection_id)
             apply_order(uow.collections.list_chapters(collection_id), ordered_ids, "position")
+            self._audit.record(uow, "chapter.reorder", collection_id)
             uow.commit()
 
     # -- photos in chapters ---------------------------------------------------------------
@@ -197,6 +213,7 @@ class CollectionService:
             left = self._place_photos(uow, chapter, photo_ids)
             uow.flush()
             prune_covers(uow, left)
+            self._audit.record(uow, "chapter.assign_photos", chapter_id)
             uow.commit()
             # Moving photos changed other rows, so read the chapter again for its new photo list.
             return ChapterOut.model_validate(self._chapter(uow, chapter_id))
@@ -210,12 +227,14 @@ class CollectionService:
             photo.chapter_id = None
             uow.flush()
             prune_covers(uow, {chapter.collection_id})
+            self._audit.record(uow, "chapter.remove_photo", f"{chapter_id}/{photo_id}")
             uow.commit()
 
     def reorder_photos(self, chapter_id: str, ordered_ids: Sequence[str]) -> None:
         with self._uow() as uow:
             self._chapter(uow, chapter_id)
             apply_order(uow.photos.list_in_chapter(chapter_id), ordered_ids, "position_in_chapter")
+            self._audit.record(uow, "chapter.reorder_photos", chapter_id)
             uow.commit()
 
     # -- helpers --------------------------------------------------------------------------

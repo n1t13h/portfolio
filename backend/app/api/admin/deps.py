@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException, Request
 from app.core.deps import get_storage
 from app.integrations.storage import Storage
 from app.schemas.auth import AdminOut
-from app.services.audit import AuditService
+from app.services.audit import AuditTrail
 from app.services.auth import AuthService
 from app.services.collections import CollectionService
 from app.services.photos import PhotoService
@@ -38,24 +38,19 @@ def require_admin(request: Request, auth: AuthService = Depends(get_auth_service
     return admin
 
 
-class Auditor:
-    """Records an audit entry for the current request's admin action."""
-
-    def __init__(self, audit: AuditService, ip: str) -> None:
-        self._audit, self._ip = audit, ip
-
-    def __call__(self, action: str, target: str = "") -> None:
-        self._audit.record(action, target, self._ip)
+def get_audit_trail(request: Request) -> AuditTrail:
+    return AuditTrail(request.app.state.clock, client_ip(request))
 
 
-def get_auditor(request: Request) -> Auditor:
-    state = request.app.state
-    return Auditor(AuditService(state.uow_factory, state.clock), client_ip(request))
+def get_photo_service(
+    request: Request,
+    storage: Storage = Depends(get_storage),
+    audit: AuditTrail = Depends(get_audit_trail),
+) -> PhotoService:
+    return PhotoService(request.app.state.uow_factory, storage, request.app.state.settings, audit)
 
 
-def get_photo_service(request: Request, storage: Storage = Depends(get_storage)) -> PhotoService:
-    return PhotoService(request.app.state.uow_factory, storage, request.app.state.settings)
-
-
-def get_collection_service(request: Request) -> CollectionService:
-    return CollectionService(request.app.state.uow_factory)
+def get_collection_service(
+    request: Request, audit: AuditTrail = Depends(get_audit_trail)
+) -> CollectionService:
+    return CollectionService(request.app.state.uow_factory, audit)

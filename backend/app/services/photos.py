@@ -11,6 +11,7 @@ from app.integrations.storage import Bucket, Storage
 from app.models import Photo, Status
 from app.schemas.photos import PhotoOut, UploadTicketOut
 from app.services import sync_state
+from app.services.audit import NO_AUDIT, AuditTrail
 from app.services.covers import prune_covers
 from app.services.images import InvalidImage, process_jpeg
 from app.services.ordering import apply_order
@@ -29,8 +30,13 @@ def original_key(photo_id: str) -> str:
 
 class PhotoService:
     def __init__(
-        self, uow_factory: UnitOfWorkFactory, storage: Storage, settings: Settings
+        self,
+        uow_factory: UnitOfWorkFactory,
+        storage: Storage,
+        settings: Settings,
+        audit: AuditTrail = NO_AUDIT,
     ) -> None:
+        self._audit = audit
         self._uow = uow_factory
         self._storage = storage
         self._settings = settings
@@ -56,7 +62,9 @@ class PhotoService:
             if self._storage.size(Bucket.PRIVATE, key) > self._settings.max_upload_bytes:
                 raise InvalidImage("file too large")
             data = self._storage.get_bytes(Bucket.PRIVATE, key)
-            return self.ingest_jpeg(data, photo_id=photo_id, store_original=False)
+            return self.ingest_jpeg(
+                data, photo_id=photo_id, store_original=False, audited_as="photo.upload"
+            )
         except InvalidImage:
             self._storage.delete(Bucket.PRIVATE, key)
             raise
@@ -73,10 +81,12 @@ class PhotoService:
         exif_fallback: Mapping[str, Any] | None = None,
         unsplash_id: str | None = None,
         unsplash_url: str | None = None,
+        audited_as: str | None = None,
     ) -> PhotoOut:
         """Process JPEG bytes, store every file in R2 and save the photo in one transaction.
 
         `exif_fallback` fills metadata the file itself lacks; the file's own EXIF wins.
+        `audited_as` records that admin action in the same transaction (manual uploads only).
         """
         if len(data) > self._settings.max_upload_bytes:
             raise InvalidImage("file too large")
@@ -116,6 +126,8 @@ class PhotoService:
                     unsplash_url=unsplash_url,
                 )
                 uow.photos.add(photo)
+                if audited_as:
+                    self._audit.record(uow, audited_as, pid)
                 uow.commit()
                 return self._out(photo)
         except Exception:
@@ -141,6 +153,7 @@ class PhotoService:
             photo = self._get(uow, photo_id)
             for name, value in changes.items():
                 setattr(photo, name, value)
+            self._audit.record(uow, "photo.update", photo_id)
             uow.commit()
             return self._out(photo)
 
@@ -148,6 +161,8 @@ class PhotoService:
         with self._uow() as uow:
             photo = self._get(uow, photo_id)
             photo.status = status
+            published = status is Status.PUBLISHED
+            self._audit.record(uow, "photo.publish" if published else "photo.unpublish", photo_id)
             uow.commit()
             return self._out(photo)
 
@@ -155,6 +170,7 @@ class PhotoService:
         with self._uow() as uow:
             photo = self._get(uow, photo_id)
             photo.allow_download = allow
+            self._audit.record(uow, "photo.allow_download", f"{photo_id}={allow}")
             uow.commit()
             return self._out(photo)
 
@@ -172,6 +188,7 @@ class PhotoService:
             uow.photos.delete(photo)
             uow.flush()
             prune_covers(uow, collections)  # a deleted photo must not linger as a cover
+            self._audit.record(uow, "photo.delete", photo_id)
             uow.commit()
         # Files go last and best-effort: a leftover file is harmless, a row pointing at
         # deleted files would show visitors broken images.
@@ -180,6 +197,7 @@ class PhotoService:
     def reorder(self, ordered_ids: Sequence[str]) -> None:
         with self._uow() as uow:
             apply_order(uow.photos.list_ordered(), ordered_ids, "sort_position")
+            self._audit.record(uow, "photo.reorder")
             uow.commit()
 
     # -- helpers --------------------------------------------------------------------------

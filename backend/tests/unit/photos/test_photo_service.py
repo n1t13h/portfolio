@@ -9,9 +9,10 @@ from app.core.config import Settings
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.integrations.storage import Bucket
 from app.models import Photo, Status
+from app.services.audit import AuditTrail
 from app.services.images import InvalidImage
 from app.services.photos import PhotoService
-from tests.fakes import FakeStorage, FakeUnitOfWork
+from tests.fakes import FakeClock, FakeStorage, FakeUnitOfWork
 from tests.support.images import make_jpeg, rich_exif
 
 
@@ -393,3 +394,68 @@ def test_deleting_a_photo_that_is_not_a_cover_leaves_the_covers_alone(
     service.delete(c)  # in no collection at all
 
     assert fake_uow.store.collections["c1"].cover_photo_ids == [a]
+
+
+# -- audit: recorded in the same transaction as the change --------------------------------
+
+
+@pytest.fixture
+def audited(
+    fake_uow: FakeUnitOfWork, storage: FakeStorage, settings: Settings, clock: FakeClock
+) -> PhotoService:
+    return PhotoService(lambda: fake_uow, storage, settings, AuditTrail(clock, "9.9.9.9"))
+
+
+def entries(uow: FakeUnitOfWork) -> list[tuple[str, str, str]]:
+    return [(e.action, e.target, e.ip) for e in uow.store.audit]
+
+
+def test_manual_uploads_and_every_admin_edit_are_audited_with_the_ip(
+    audited: PhotoService, storage: FakeStorage, fake_uow: FakeUnitOfWork
+) -> None:
+    pid = audited.confirm_upload(uploaded(audited, storage, make_jpeg((300, 200)))).id
+    audited.update(pid, {"title": "x"})
+    audited.set_status(pid, Status.PUBLISHED)
+    audited.set_status(pid, Status.DRAFT)
+    audited.set_allow_download(pid, True)
+    audited.reorder([pid])
+    audited.delete(pid)
+
+    assert entries(fake_uow) == [
+        ("photo.upload", pid, "9.9.9.9"),
+        ("photo.update", pid, "9.9.9.9"),
+        ("photo.publish", pid, "9.9.9.9"),
+        ("photo.unpublish", pid, "9.9.9.9"),
+        ("photo.allow_download", f"{pid}=True", "9.9.9.9"),
+        ("photo.reorder", "", "9.9.9.9"),
+        ("photo.delete", pid, "9.9.9.9"),
+    ]
+
+
+def test_an_import_by_the_sync_or_seed_is_not_an_admin_action_and_is_not_audited(
+    audited: PhotoService, fake_uow: FakeUnitOfWork
+) -> None:
+    audited.ingest_jpeg(make_jpeg((300, 200)), unsplash_id="u1")
+    assert fake_uow.store.audit == []
+
+
+def test_a_change_and_its_audit_entry_are_saved_together_or_not_at_all(
+    audited: PhotoService, storage: FakeStorage, fake_uow: FakeUnitOfWork
+) -> None:
+    pid = audited.confirm_upload(uploaded(audited, storage, make_jpeg((300, 200)))).id
+    fake_uow.store.audit.clear()
+    fake_uow.fail_next_commit(RuntimeError("database is down"))
+
+    with pytest.raises(RuntimeError):
+        audited.set_status(pid, Status.PUBLISHED)
+
+    assert fake_uow.store.audit == []
+    assert audited.get(pid).status is Status.DRAFT  # neither the change nor the record
+
+
+def test_without_a_trail_nothing_is_audited(
+    service: PhotoService, storage: FakeStorage, fake_uow: FakeUnitOfWork
+) -> None:
+    [pid, *_] = three(service, storage)
+    service.update(pid, {"title": "x"})
+    assert fake_uow.store.audit == []
