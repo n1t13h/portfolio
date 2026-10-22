@@ -288,3 +288,17 @@ def test_all_routes_require_admin(client: TestClient, admin_url: str) -> None:
     ]
     for method, url in calls:
         assert client.request(method, url, json={}).status_code == 401, (method, url)
+
+
+def test_deleting_a_cover_photo_clears_it_from_the_collection(
+    admin_client: TestClient, admin_url: str, storage: FakeStorage
+) -> None:
+    col = add_collection(admin_client, admin_url, "goa")
+    chapter = add_chapter(admin_client, admin_url, col["id"])
+    photo = add_photo(admin_client, storage, admin_url)["id"]
+    assign(admin_client, admin_url, chapter["id"], [photo])
+    admin_client.put(f"{admin_url}/collections/{col['id']}/covers", json={"photoIds": [photo]})
+
+    assert admin_client.delete(f"{admin_url}/photos/{photo}").status_code == 204
+
+    assert get_collection(admin_client, admin_url, col["id"])["coverPhotoIds"] == []

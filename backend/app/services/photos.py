@@ -11,6 +11,7 @@ from app.integrations.storage import Bucket, Storage
 from app.models import Photo, Status
 from app.schemas.photos import PhotoOut, UploadTicketOut
 from app.services import sync_state
+from app.services.covers import prune_covers
 from app.services.images import InvalidImage, process_jpeg
 from app.services.ordering import apply_order
 from app.uow import AbstractUnitOfWork, UnitOfWorkFactory
@@ -166,7 +167,11 @@ class PhotoService:
             ]
             if photo.unsplash_id:  # so the next sync does not bring it back
                 sync_state.skip(uow.sync_state.get_or_create(), photo.unsplash_id, "deleted")
+            chapters = [photo.chapter_id] if photo.chapter_id else []
+            collections = uow.collections.collection_ids_of_chapters(chapters)
             uow.photos.delete(photo)
+            uow.flush()
+            prune_covers(uow, collections)  # a deleted photo must not linger as a cover
             uow.commit()
         # Files go last and best-effort: a leftover file is harmless, a row pointing at
         # deleted files would show visitors broken images.

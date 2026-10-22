@@ -354,3 +354,42 @@ def test_reads_never_commit(
     service.get(pid)
     service.list_all()
     assert fake_uow.commits == before
+
+
+# -- covers -------------------------------------------------------------------------------
+
+
+def collection_with_cover(uow: FakeUnitOfWork, photo_ids: list[str], covers: list[str]) -> None:
+    from tests.support.builders import make_chapter, make_collection
+
+    with uow as work:
+        work.collections.add(make_collection("c1", cover_photo_ids=covers))
+        work.collections.add_chapter(make_chapter("ch1", "c1"))
+        for position, photo_id in enumerate(photo_ids):
+            photo = work.photos.get(photo_id)
+            assert photo is not None
+            photo.chapter_id, photo.position_in_chapter = "ch1", position
+        work.commit()
+
+
+def test_deleting_a_cover_photo_removes_it_from_the_collections_covers(
+    service: PhotoService, storage: FakeStorage, fake_uow: FakeUnitOfWork
+) -> None:
+    a, b, _ = three(service, storage)
+    collection_with_cover(fake_uow, [a, b], covers=[a, b])
+
+    service.delete(a)
+
+    assert fake_uow.store.collections["c1"].cover_photo_ids == [b]
+
+
+def test_deleting_a_photo_that_is_not_a_cover_leaves_the_covers_alone(
+    service: PhotoService, storage: FakeStorage, fake_uow: FakeUnitOfWork
+) -> None:
+    a, b, c = three(service, storage)
+    collection_with_cover(fake_uow, [a, b], covers=[a])
+
+    service.delete(b)
+    service.delete(c)  # in no collection at all
+
+    assert fake_uow.store.collections["c1"].cover_photo_ids == [a]
