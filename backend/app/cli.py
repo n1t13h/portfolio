@@ -11,12 +11,16 @@ from app.core.db import make_engine, make_session_factory
 from app.integrations.notifier import Notifier, build_notifier
 from app.services.auth import AdminExists, AuthService
 from app.services.contact import ContactService
-from app.uow import SqlAlchemyUnitOfWork
+from app.uow import SqlAlchemyUnitOfWork, UnitOfWorkFactory
+
+
+def _uow_factory(settings: Settings) -> UnitOfWorkFactory:
+    sessions = make_session_factory(make_engine(settings.database_url))
+    return lambda: SqlAlchemyUnitOfWork(sessions)
 
 
 def _auth_service(settings: Settings) -> AuthService:
-    sessions = make_session_factory(make_engine(settings.database_url))
-    return AuthService(lambda: SqlAlchemyUnitOfWork(sessions), settings, SystemClock())
+    return AuthService(_uow_factory(settings), settings, SystemClock())
 
 
 def create_admin(username: str) -> int:
@@ -58,9 +62,11 @@ def notify_pending(
 ) -> int:
     """Deliver contact messages the owner has not been told about yet (run by a timer)."""
     settings = settings or get_settings()
-    sessions = make_session_factory(make_engine(settings.database_url))
     service = ContactService(
-        sessions, notifier or build_notifier(settings), settings, clock or SystemClock()
+        _uow_factory(settings),
+        notifier or build_notifier(settings),
+        settings,
+        clock or SystemClock(),
     )
     service.deliver_pending()
     return 0

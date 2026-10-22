@@ -13,7 +13,7 @@ def contact(body: ContactBody, request: Request, background: BackgroundTasks) ->
     if body.website:  # a bot filled the hidden field: pretend success, keep nothing
         return {"status": "received"}
     state = request.app.state
-    service = ContactService(state.session_factory, state.notifier, state.settings, state.clock)
+    service = ContactService(state.uow_factory, state.notifier, state.settings, state.clock)
     ip = request.client.host if request.client else ""
     try:
         service.submit(body.name, body.email, body.message, ip)

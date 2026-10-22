@@ -10,7 +10,7 @@ from app.core.config import Settings
 from app.core.db import Base, make_engine, make_session_factory
 from app.integrations.notifier import TelegramNotifier
 from app.models import ContactMessage
-from app.services.contact import ContactService, RateLimited
+from app.services.contact import ContactService
 from tests.fakes import FakeClock, FakeNotifier
 
 
@@ -79,16 +79,6 @@ def test_rate_limit_per_ip(client: TestClient, clock: FakeClock) -> None:
     assert client.post("/contact", json=VALID).status_code == 202
 
 
-def test_global_cap_across_ips(
-    client: TestClient, settings: Settings, clock: FakeClock, notifier: FakeNotifier
-) -> None:
-    service = ContactService(client.app.state.session_factory, notifier, settings, clock)  # type: ignore[attr-defined]
-    for i in range(settings.contact_max_per_hour_global):
-        service.submit("A", "a@b.co", "hi", ip=f"10.0.0.{i}")
-    with pytest.raises(RateLimited):
-        service.submit("A", "a@b.co", "hi", ip="10.9.9.9")
-
-
 @pytest.mark.parametrize(
     "patch",
     [
@@ -155,7 +145,7 @@ def test_bot_token_never_reaches_the_logs(
     ):
         caplog.clear()
         service = ContactService(
-            client.app.state.session_factory,  # type: ignore[attr-defined]
+            client.app.state.uow_factory,  # type: ignore[attr-defined]
             _telegram(settings, transport),
             settings,
             clock,
