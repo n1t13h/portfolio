@@ -17,6 +17,7 @@ from app.core.config import Settings
 from app.core.errors import Conflict
 from app.integrations.storage import Storage
 from app.integrations.unsplash import RateLimited, UnsplashClient
+from app.schemas.sync import SyncStatusOut
 from app.services.photos import PhotoService
 from app.uow import UnitOfWorkFactory
 
@@ -36,17 +37,6 @@ class SyncResult:
     imported: int
     stopped_early: bool
     error: str | None
-
-
-@dataclass(frozen=True)
-class SyncStatus:
-    running: bool
-    last_started_at: datetime | None
-    last_finished_at: datetime | None
-    last_imported: int
-    last_error: str | None
-    rate_limit_remaining: int | None
-    pending: int
 
 
 @dataclass
@@ -90,13 +80,13 @@ class SyncService:
                 raise SyncAlreadyRunning
             uow.commit()
 
-    def status(self) -> SyncStatus:
+    def status(self) -> SyncStatusOut:
         with self._uow() as uow:
             row = uow.sync_state.get_or_create()
             uow.commit()
             started = row.last_started_at
             fresh = started is not None and _aware(started) > self._clock.now() - STALE_LOCK
-            return SyncStatus(
+            return SyncStatusOut(
                 running=row.running and fresh,
                 last_started_at=started,
                 last_finished_at=row.last_finished_at,

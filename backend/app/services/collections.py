@@ -8,7 +8,6 @@ from typing import Any
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.models import Chapter, Collection, Status
 from app.schemas.collections import SLUG_PATTERN, ChapterOut, CollectionOut
-from app.services.mappers import admin_chapter, admin_collection
 from app.services.ordering import apply_order
 from app.uow import AbstractUnitOfWork, UnitOfWorkFactory
 
@@ -32,11 +31,11 @@ class CollectionService:
 
     def list_collections(self) -> list[CollectionOut]:
         with self._uow() as uow:
-            return self._collections_out(uow, uow.collections.list_ordered())
+            return [CollectionOut.model_validate(c) for c in uow.collections.list_ordered()]
 
     def get_collection(self, collection_id: str) -> CollectionOut:
         with self._uow() as uow:
-            return self._collection_out(uow, self._collection(uow, collection_id))
+            return CollectionOut.model_validate(self._collection(uow, collection_id))
 
     def create_collection(
         self, slug: str, title: str, place: str = "", year: str = "", intro: str = ""
@@ -54,7 +53,7 @@ class CollectionService:
             )
             uow.collections.add(collection)
             uow.commit()
-            return self._collection_out(uow, collection)
+            return CollectionOut.model_validate(collection)
 
     def update_collection(self, collection_id: str, changes: Mapping[str, Any]) -> CollectionOut:
         changes = _checked_changes(changes, COLLECTION_FIELDS)
@@ -65,14 +64,14 @@ class CollectionService:
             for name, value in changes.items():
                 setattr(collection, name, value)
             uow.commit()
-            return self._collection_out(uow, collection)
+            return CollectionOut.model_validate(collection)
 
     def set_status(self, collection_id: str, status: Status) -> CollectionOut:
         with self._uow() as uow:
             collection = self._collection(uow, collection_id)
             collection.status = status
             uow.commit()
-            return self._collection_out(uow, collection)
+            return CollectionOut.model_validate(collection)
 
     def delete_collection(self, collection_id: str) -> None:
         with self._uow() as uow:
@@ -96,7 +95,7 @@ class CollectionService:
                 raise InvalidRequest("covers must be photos in this collection")
             collection.cover_photo_ids = list(photo_ids)
             uow.commit()
-            return self._collection_out(uow, collection)
+            return CollectionOut.model_validate(collection)
 
     # -- chapters -------------------------------------------------------------------------
 
@@ -112,7 +111,7 @@ class CollectionService:
             )
             uow.collections.add_chapter(chapter)
             uow.commit()
-            return self._chapter_out(uow, chapter)
+            return ChapterOut.model_validate(chapter)
 
     def update_chapter(self, chapter_id: str, changes: Mapping[str, Any]) -> ChapterOut:
         changes = _checked_changes(changes, CHAPTER_FIELDS)
@@ -121,7 +120,7 @@ class CollectionService:
             for name, value in changes.items():
                 setattr(chapter, name, value)
             uow.commit()
-            return self._chapter_out(uow, chapter)
+            return ChapterOut.model_validate(chapter)
 
     def delete_chapter(self, chapter_id: str) -> None:
         with self._uow() as uow:
@@ -163,7 +162,8 @@ class CollectionService:
             uow.flush()
             self._prune_covers(uow, left)
             uow.commit()
-            return self._chapter_out(uow, chapter)
+            # Moving photos changed other rows, so read the chapter again for its new photo list.
+            return ChapterOut.model_validate(self._chapter(uow, chapter_id))
 
     def remove_photo(self, chapter_id: str, photo_id: str) -> None:
         with self._uow() as uow:
@@ -215,23 +215,6 @@ class CollectionService:
                 continue
             inside = uow.photos.ids_in_collection(collection_id)
             collection.cover_photo_ids = [p for p in collection.cover_photo_ids if p in inside]
-
-    @staticmethod
-    def _chapter_out(uow: AbstractUnitOfWork, chapter: Chapter) -> ChapterOut:
-        photo_ids = uow.photos.ids_by_chapter([chapter.id])[chapter.id]
-        return admin_chapter(chapter, photo_ids)
-
-    def _collection_out(self, uow: AbstractUnitOfWork, collection: Collection) -> CollectionOut:
-        return self._collections_out(uow, [collection])[0]
-
-    @staticmethod
-    def _collections_out(
-        uow: AbstractUnitOfWork, collections: Sequence[Collection]
-    ) -> list[CollectionOut]:
-        chapters = uow.collections.chapters_by_collection([c.id for c in collections])
-        chapter_ids = [ch.id for chs in chapters.values() for ch in chs]
-        photo_ids = uow.photos.ids_by_chapter(chapter_ids)
-        return [admin_collection(c, chapters[c.id], photo_ids) for c in collections]
 
 
 def _new_id() -> str:

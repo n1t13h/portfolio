@@ -38,9 +38,15 @@ router -> service -> unit of work -> repositories -> SQLAlchemy / SQLite
   block without committing rolls everything back, so a service that fails halfway changes nothing.
   Services receive a unit-of-work *factory* because some (sync, seed, contact) run several short
   transactions in a row.
-- Services never see a `Session` and never walk ORM relationships; they ask a repository
-  (`uow.collections.list_chapters(id)`). Entities do not leave a service: it returns schemas built
-  inside the transaction, so nothing depends on a live session.
+- Services never see a `Session`; they ask a repository. Entities do not leave a service: it
+  returns schemas built inside the transaction, so nothing depends on a live session.
+- **Row to model**: a response is built straight from the loaded row, `CollectionOut.model_validate(row)`,
+  with no per-entity mapping helpers. Repositories hand back rows with their children loaded in display
+  order (`collection.chapters`, `chapter.photos`), and anything a row cannot know (the CDN address of an
+  image) comes in through the validation context, e.g.
+  `PhotoOut.model_validate(photo, context={"public_url": storage.public_url})`. The one thing built by
+  hand is the public collection's chapters and covers: they are filtered (drafts must not appear), so
+  they must not be read from the ORM relationships.
 - Repositories hold queries only. Business rules (slug format, lockouts, who may see what) live in
   services; the public-visibility rule lives in one place, `repositories/catalog.py`.
 - Routers parse the request, call one service method and return its result. Pydantic models live in

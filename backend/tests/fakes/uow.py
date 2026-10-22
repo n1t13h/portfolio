@@ -177,8 +177,22 @@ class FakeCollectionRepository(AbstractCollectionRepository):
         self._store.apply_defaults(collection)
         self._store.collections[collection.id] = collection
 
+    def _hydrate_chapter(self, chapter: Chapter) -> Chapter:
+        """Fill `chapter.photos` the way a database load would: in display order."""
+        photos = [p for p in self._store.photos.values() if p.chapter_id == chapter.id]
+        chapter.photos = sorted(photos, key=lambda p: (p.position_in_chapter, p.id))
+        return chapter
+
+    def _hydrate(self, collection: Collection) -> Collection:
+        chapters = self.list_chapters(collection.id)
+        for chapter in chapters:
+            self._hydrate_chapter(chapter)
+        collection.chapters = chapters
+        return collection
+
     def get(self, collection_id: str) -> Collection | None:
-        return self._store.collections.get(collection_id)
+        collection = self._store.collections.get(collection_id)
+        return self._hydrate(collection) if collection else None
 
     def delete(self, collection: Collection) -> None:
         for chapter in self.list_chapters(collection.id):
@@ -186,7 +200,8 @@ class FakeCollectionRepository(AbstractCollectionRepository):
         self._store.collections.pop(collection.id, None)
 
     def list_ordered(self) -> list[Collection]:
-        return sorted(self._store.collections.values(), key=lambda c: (c.sort_position, c.id))
+        ordered = sorted(self._store.collections.values(), key=lambda c: (c.sort_position, c.id))
+        return [self._hydrate(c) for c in ordered]
 
     def slug_owner(self, slug: str) -> str | None:
         return next((c.id for c in self._store.collections.values() if c.slug == slug), None)
@@ -199,7 +214,8 @@ class FakeCollectionRepository(AbstractCollectionRepository):
         self._store.chapters[chapter.id] = chapter
 
     def get_chapter(self, chapter_id: str) -> Chapter | None:
-        return self._store.chapters.get(chapter_id)
+        chapter = self._store.chapters.get(chapter_id)
+        return self._hydrate_chapter(chapter) if chapter else None
 
     def delete_chapter(self, chapter: Chapter) -> None:
         for photo in self._store.photos.values():  # like ON DELETE SET NULL

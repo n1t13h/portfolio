@@ -13,13 +13,22 @@ def make_photo(photo_id: str, **overrides: Any) -> Photo:
 
 
 def make_collection(collection_id: str, **overrides: Any) -> Collection:
-    values: dict[str, Any] = {"slug": collection_id, "title": collection_id, "sort_position": 0}
+    values: dict[str, Any] = {
+        "slug": collection_id,
+        "title": collection_id,
+        "place": "",
+        "year": "",
+        "intro": "",
+        "status": Status.DRAFT,
+        "sort_position": 0,
+        "cover_photo_ids": [],
+    }
     values.update(overrides)
     return Collection(id=collection_id, **values)
 
 
 def make_chapter(chapter_id: str, collection_id: str, **overrides: Any) -> Chapter:
-    values: dict[str, Any] = {"title": chapter_id, "position": 0}
+    values: dict[str, Any] = {"title": chapter_id, "note": "", "position": 0}
     values.update(overrides)
     return Chapter(id=chapter_id, collection_id=collection_id, **values)
 

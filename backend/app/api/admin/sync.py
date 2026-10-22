@@ -48,13 +48,4 @@ def start_full(
 
 @router.get("/status")
 def status(sync: SyncService = Depends(get_sync_service)) -> SyncStatusOut:
-    s = sync.status()
-    return SyncStatusOut(
-        running=s.running,
-        last_started_at=s.last_started_at,
-        last_finished_at=s.last_finished_at,
-        last_imported=s.last_imported,
-        last_error=s.last_error,
-        rate_limit_remaining=s.rate_limit_remaining,
-        pending=s.pending,
-    )
+    return sync.status()

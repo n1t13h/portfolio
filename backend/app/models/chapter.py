@@ -24,5 +24,12 @@ class Chapter(Base):
     collection: Mapped["Collection"] = relationship(back_populates="chapters")
     # The database sets photo.chapter_id to NULL on delete; photos are never deleted here.
     photos: Mapped[list["Photo"]] = relationship(
-        back_populates="chapter", passive_deletes=True, order_by="Photo.position_in_chapter"
+        back_populates="chapter",
+        passive_deletes=True,
+        order_by="Photo.position_in_chapter, Photo.id",
     )
+
+    @property
+    def photo_ids(self) -> list[str]:
+        """The ids of this chapter's photos in display order (read by `ChapterOut`)."""
+        return [photo.id for photo in self.photos]

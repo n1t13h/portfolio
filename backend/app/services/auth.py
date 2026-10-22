@@ -128,7 +128,7 @@ class AuthService:
     def verify_session(self, token: str) -> AdminOut | None:
         with self._uow() as uow:
             admin = self._admin_for(uow, token)
-            return AdminOut(username=admin.username) if admin else None
+            return AdminOut.model_validate(admin) if admin else None
 
     def revoke_session(self, token: str) -> None:
         """Log out for real: every token issued so far stops working, not just this cookie."""

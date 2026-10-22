@@ -5,12 +5,21 @@ from collections import defaultdict
 from collections.abc import Sequence
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm.interfaces import LoaderOption
 
 from app.models import Chapter, Collection
 
 
 class AbstractCollectionRepository(ABC):
+    """Rows come back with their children available (`collection.chapters`, `chapter.photos`),
+    in display order, so a service can turn them into a response with `Model.model_validate(row)`.
+
+    Those relationship lists reflect the database as of when they are first read. After a change
+    to *other* rows (e.g. moving photos between chapters), read the chapter again with
+    `get_chapter` before turning it into a response.
+    """
+
     # -- collections
     @abstractmethod
     def add(self, collection: Collection) -> None: ...
@@ -57,6 +66,11 @@ class AbstractCollectionRepository(ABC):
     def collection_ids_of_chapters(self, chapter_ids: Sequence[str]) -> set[str]: ...
 
 
+def _with_children() -> LoaderOption:
+    """Load chapters and their photos in two extra queries, however many collections there are."""
+    return selectinload(Collection.chapters).selectinload(Chapter.photos)
+
+
 class SqlAlchemyCollectionRepository(AbstractCollectionRepository):
     def __init__(self, session: Session) -> None:
         self._s = session
@@ -65,13 +79,17 @@ class SqlAlchemyCollectionRepository(AbstractCollectionRepository):
         self._s.add(collection)
 
     def get(self, collection_id: str) -> Collection | None:
-        return self._s.get(Collection, collection_id)
+        return self._s.get(Collection, collection_id, options=[_with_children()])
 
     def delete(self, collection: Collection) -> None:
         self._s.delete(collection)
 
     def list_ordered(self) -> list[Collection]:
-        stmt = select(Collection).order_by(Collection.sort_position, Collection.id)
+        stmt = (
+            select(Collection)
+            .options(_with_children())
+            .order_by(Collection.sort_position, Collection.id)
+        )
         return list(self._s.scalars(stmt))
 
     def slug_owner(self, slug: str) -> str | None:

@@ -12,7 +12,6 @@ from app.models import Photo, Status
 from app.schemas.photos import PhotoOut, UploadTicketOut
 from app.services import sync_state
 from app.services.images import InvalidImage, process_jpeg
-from app.services.mappers import admin_photo
 from app.services.ordering import apply_order
 from app.uow import AbstractUnitOfWork, UnitOfWorkFactory
 
@@ -34,6 +33,7 @@ class PhotoService:
         self._uow = uow_factory
         self._storage = storage
         self._settings = settings
+        self._context = {"public_url": storage.public_url}  # lets PhotoOut build CDN URLs
 
     # -- upload ---------------------------------------------------------------------------
 
@@ -116,7 +116,7 @@ class PhotoService:
                 )
                 uow.photos.add(photo)
                 uow.commit()
-                return admin_photo(photo, self._storage)
+                return self._out(photo)
         except Exception:
             self._remove_quietly(written)  # leave no orphaned files behind
             raise
@@ -125,11 +125,11 @@ class PhotoService:
 
     def list_all(self) -> list[PhotoOut]:
         with self._uow() as uow:
-            return [admin_photo(p, self._storage) for p in uow.photos.list_ordered()]
+            return [self._out(p) for p in uow.photos.list_ordered()]
 
     def get(self, photo_id: str) -> PhotoOut:
         with self._uow() as uow:
-            return admin_photo(self._get(uow, photo_id), self._storage)
+            return self._out(self._get(uow, photo_id))
 
     def update(self, photo_id: str, changes: Mapping[str, Any]) -> PhotoOut:
         if not set(changes) <= EDITABLE_FIELDS:
@@ -141,21 +141,21 @@ class PhotoService:
             for name, value in changes.items():
                 setattr(photo, name, value)
             uow.commit()
-            return admin_photo(photo, self._storage)
+            return self._out(photo)
 
     def set_status(self, photo_id: str, status: Status) -> PhotoOut:
         with self._uow() as uow:
             photo = self._get(uow, photo_id)
             photo.status = status
             uow.commit()
-            return admin_photo(photo, self._storage)
+            return self._out(photo)
 
     def set_allow_download(self, photo_id: str, allow: bool) -> PhotoOut:
         with self._uow() as uow:
             photo = self._get(uow, photo_id)
             photo.allow_download = allow
             uow.commit()
-            return admin_photo(photo, self._storage)
+            return self._out(photo)
 
     def delete(self, photo_id: str) -> None:
         with self._uow() as uow:
@@ -178,6 +178,9 @@ class PhotoService:
             uow.commit()
 
     # -- helpers --------------------------------------------------------------------------
+
+    def _out(self, photo: Photo) -> PhotoOut:
+        return PhotoOut.model_validate(photo, context=self._context)
 
     @staticmethod
     def _get(uow: AbstractUnitOfWork, photo_id: str) -> Photo:

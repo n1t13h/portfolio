@@ -111,3 +111,44 @@ def test_deleting_a_collection_removes_its_chapters_but_not_its_photos(
         assert uow.collections.get_chapter("ch3") is not None  # another collection's chapter
         photo = uow.photos.get("p1")
         assert photo is not None and photo.chapter_id is None
+
+
+def test_a_collection_loads_with_its_chapters_and_their_photos_in_display_order(
+    uow: AbstractUnitOfWork,
+) -> None:
+    """Both implementations must hand back rows ready to turn into models with model_validate."""
+    seed(uow)
+    with uow:
+        uow.photos.add(make_photo("late", chapter_id="ch1", position_in_chapter=2))
+        uow.photos.add(make_photo("early", chapter_id="ch1", position_in_chapter=0))
+        uow.photos.add(make_photo("tie-b", chapter_id="ch1", position_in_chapter=1))
+        uow.photos.add(make_photo("tie-a", chapter_id="ch1", position_in_chapter=1))
+        uow.commit()
+    with uow:
+        collection = uow.collections.get("c1")
+        assert collection is not None
+        assert [ch.id for ch in collection.chapters] == ["ch1", "ch2"]
+        assert [p.id for p in collection.chapters[0].photos] == ["early", "tie-a", "tie-b", "late"]
+        assert collection.chapters[0].photo_ids == ["early", "tie-a", "tie-b", "late"]
+        assert collection.chapters[1].photo_ids == []
+
+        everything = {c.id: [ch.id for ch in c.chapters] for c in uow.collections.list_ordered()}
+        assert everything == {"c1": ["ch1", "ch2"], "c2": ["ch3"]}
+
+        chapter = uow.collections.get_chapter("ch1")
+        assert chapter is not None and chapter.photo_ids == ["early", "tie-a", "tie-b", "late"]
+
+
+def test_rereading_after_photos_move_shows_the_new_membership(uow: AbstractUnitOfWork) -> None:
+    seed(uow)
+    with uow:
+        uow.photos.add(make_photo("p1", chapter_id="ch1"))
+        uow.commit()
+    with uow:
+        photo = uow.photos.get("p1")
+        assert photo is not None
+        photo.chapter_id = "ch2"
+        uow.commit()
+        first, second = uow.collections.get_chapter("ch1"), uow.collections.get_chapter("ch2")
+        assert first is not None and second is not None
+        assert (first.photo_ids, second.photo_ids) == ([], ["p1"])

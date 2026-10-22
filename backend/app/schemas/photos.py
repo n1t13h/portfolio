@@ -3,10 +3,10 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field, ValidationInfo, field_validator
 
 from app.models import Status
-from app.schemas.base import CamelModel
+from app.schemas.base import CamelModel, storage_keys_to_urls
 
 
 class UploadTicketOut(CamelModel):
@@ -27,8 +27,14 @@ class PhotoOut(CamelModel):
     sort_position: int
     chapter_id: str | None
     unsplash_id: str | None
-    variants: dict[str, str]  # long edge -> public CDN URL
+    # Rows hold storage keys (`variant_keys`); the context turns them into CDN URLs.
+    variants: dict[str, str] = Field(validation_alias=AliasChoices("variants", "variant_keys"))
     created_at: datetime
+
+    @field_validator("variants")
+    @classmethod
+    def _keys_to_urls(cls, keys: dict[str, str], info: ValidationInfo) -> dict[str, str]:
+        return storage_keys_to_urls(keys, info)
 
 
 class PhotoPatch(BaseModel):

@@ -29,5 +29,5 @@ class Collection(Base):
         back_populates="collection",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        order_by="Chapter.position",
+        order_by="Chapter.position, Chapter.id",
     )

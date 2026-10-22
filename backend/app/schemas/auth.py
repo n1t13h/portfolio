@@ -1,6 +1,6 @@
 """Admin login models."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginBody(BaseModel):
@@ -11,5 +11,7 @@ class LoginBody(BaseModel):
 
 class AdminOut(BaseModel):
     """The signed-in admin, as far as the API needs to know."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     username: str
