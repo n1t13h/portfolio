@@ -265,3 +265,51 @@ def test_failures_are_kept_even_though_the_attempt_was_refused(
 ) -> None:
     fail(service)
     assert isinstance(fake_uow.store.login_failures[0], LoginFailure)
+
+
+# -- the account-wide limit must not lock the owner out ------------------------------------
+
+
+def test_an_ip_that_logged_in_recently_is_not_locked_by_failures_from_elsewhere(
+    service: AuthService, created: CreatedAdmin, clock: FakeClock, settings: Settings
+) -> None:
+    service.login("nitish", PASSWORD, totp(created, clock), IP)
+    clock.advance(30)
+    for i in range(settings.login_max_failures_per_account):
+        fail(service, ip=f"10.0.0.{i}")
+
+    assert service.login("nitish", PASSWORD, totp(created, clock), IP)  # the owner gets in
+    with pytest.raises(LockedOut):  # a stranger does not
+        service.login("nitish", PASSWORD, totp(created, clock), "10.9.9.9")
+
+
+def test_a_known_ip_is_still_limited_by_its_own_failures(
+    service: AuthService, created: CreatedAdmin, clock: FakeClock, settings: Settings
+) -> None:
+    service.login("nitish", PASSWORD, totp(created, clock), IP)
+    clock.advance(30)
+    for _ in range(settings.login_max_failures):
+        fail(service)
+    with pytest.raises(LockedOut):
+        service.login("nitish", PASSWORD, totp(created, clock), IP)
+
+
+def test_an_ip_is_forgotten_after_a_month_without_a_login(
+    service: AuthService, created: CreatedAdmin, clock: FakeClock, settings: Settings
+) -> None:
+    service.login("nitish", PASSWORD, totp(created, clock), IP)
+    clock.advance(31 * 24 * 3600)
+    for i in range(settings.login_max_failures_per_account):
+        fail(service, ip=f"10.0.0.{i}")
+    with pytest.raises(LockedOut):
+        service.login("nitish", PASSWORD, totp(created, clock), IP)
+
+
+def test_failed_logins_do_not_make_an_ip_known(
+    service: AuthService, created: CreatedAdmin, clock: FakeClock, settings: Settings
+) -> None:
+    fail(service, ip="6.6.6.6")
+    for i in range(settings.login_max_failures_per_account - 1):
+        fail(service, ip=f"10.0.0.{i}")
+    with pytest.raises(LockedOut):
+        service.login("nitish", PASSWORD, totp(created, clock), "6.6.6.6")

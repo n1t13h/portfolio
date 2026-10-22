@@ -23,6 +23,7 @@ from app.uow import AbstractUnitOfWork, UnitOfWorkFactory
 
 RECOVERY_CODE_COUNT = 10
 TOTP_STEP_SECONDS = 30
+KNOWN_IP_WINDOW = timedelta(days=30)  # an IP with a login this recent skips the account limit
 
 
 class AdminExists(Exception):
@@ -104,9 +105,13 @@ class AuthService:
             uow.commit()
             if uow.login_failures.count_for_key(key) >= self._settings.login_max_failures:
                 raise LockedOut
-            # Rotating IPs does not help an attacker: the account itself is throttled too.
+            # Rotating IPs does not help an attacker: the account itself is throttled too, but
+            # an IP the owner logged in from recently is exempt, so hammering their username
+            # from elsewhere cannot lock them out of their own site.
             per_account = uow.login_failures.count_for_username(username)
-            if per_account >= self._settings.login_max_failures_per_account:
+            if per_account >= self._settings.login_max_failures_per_account and not (
+                uow.audit.has_login_from(ip, self._clock.now() - KNOWN_IP_WINDOW)
+            ):
                 raise LockedOut
 
             admin = uow.admins.get_by_username(username)

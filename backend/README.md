@@ -146,8 +146,12 @@ the session on the server, not just in the browser.
 retries every 5 minutes (`python -m app.cli notify-pending`); nothing is lost.
 
 **Login protection**: 5 failures per IP + username, and 20 per username from any IP, lock logins for
-15 minutes. That also means someone hammering your username can lock *you* out for 15 minutes;
-`reset-admin` clears it.
+15 minutes. The per-username limit does not apply to an IP you successfully logged in from in the
+last 30 days, so someone hammering your username from elsewhere cannot lock you out from your usual
+connection. A new IP can still be locked for 15 minutes; `reset-admin` clears it.
+
+**Audit log**: every admin action (and login) is written in the same transaction as the change
+itself, so the two are saved together or not at all. Scheduled syncs and the seed are not audited.
 
 ## First deployment checklist
 

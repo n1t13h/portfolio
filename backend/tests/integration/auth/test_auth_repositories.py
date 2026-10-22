@@ -1,6 +1,6 @@
 """Repository contract for the admin account and the failed-login log."""
 
-from app.models import Admin, LoginFailure
+from app.models import Admin, AuditLog, LoginFailure
 from app.uow import AbstractUnitOfWork
 from tests.support.builders import at
 
@@ -84,3 +84,17 @@ def test_failures_can_be_cleared_for_a_key_or_entirely(uow: AbstractUnitOfWork) 
         uow.commit()
     with uow:
         assert uow.login_failures.count_for_username("nitish") == 0
+
+
+def test_a_login_from_an_ip_is_remembered_from_the_given_moment(uow: AbstractUnitOfWork) -> None:
+    with uow:
+        uow.audit.add(AuditLog(at=at(10), action="login", target="nitish", ip="1.1.1.1"))
+        uow.audit.add(AuditLog(at=at(20), action="login_failed", target="nitish", ip="2.2.2.2"))
+        uow.audit.add(AuditLog(at=at(30), action="photo.delete", target="x", ip="3.3.3.3"))
+        uow.commit()
+    with uow:
+        assert uow.audit.has_login_from("1.1.1.1", since=at(10))
+        assert not uow.audit.has_login_from("1.1.1.1", since=at(11))
+        assert not uow.audit.has_login_from("2.2.2.2", since=at(0))  # only successful logins
+        assert not uow.audit.has_login_from("3.3.3.3", since=at(0))
+        assert not uow.audit.has_login_from("9.9.9.9", since=at(0))

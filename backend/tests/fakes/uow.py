@@ -355,6 +355,9 @@ class FakeAuditRepository(AbstractAuditRepository):
         self._store.apply_defaults(entry)
         self._store.audit.append(entry)
 
+    def has_login_from(self, ip: str, since: datetime) -> bool:
+        return any(e.action == "login" and e.ip == ip and e.at >= since for e in self._store.audit)
+
 
 class FakeSyncStateRepository(AbstractSyncStateRepository):
     def __init__(self, store: InMemoryStore) -> None:
