@@ -20,6 +20,10 @@ class RateLimited(Exception):
     """Unsplash says we are out of requests for this hour."""
 
 
+class UnsplashNotConfigured(Exception):
+    """There is no UNSPLASH_ACCESS_KEY, so no request can be made."""
+
+
 class DownloadTooLarge(ValueError):
     """The image file is bigger than we accept."""
 
@@ -89,6 +93,7 @@ class HttpxUnsplashClient:
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._user = settings.unsplash_user
+        self._has_key = bool(settings.unsplash_access_key)
         self._max_bytes = settings.max_upload_bytes
         self._sleep = sleep
         self._api = httpx.Client(
@@ -148,6 +153,8 @@ class HttpxUnsplashClient:
         return bytes(body)
 
     def _api_get(self, url: str, params: Mapping[str, Any] | None = None) -> httpx.Response:
+        if not self._has_key:
+            raise UnsplashNotConfigured("Unsplash is not configured: set UNSPLASH_ACCESS_KEY")
         if self._made_call:
             self._sleep(SPACING_SECONDS)
         self._made_call = True

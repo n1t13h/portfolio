@@ -6,6 +6,7 @@ from app.integrations.unsplash import (
     DownloadTooLarge,
     HttpxUnsplashClient,
     RateLimited,
+    UnsplashNotConfigured,
     UnsplashPhoto,
     to_place,
     to_title,
@@ -219,3 +220,20 @@ def test_download_is_capped_while_streaming(settings: Settings) -> None:
     )
     with pytest.raises(DownloadTooLarge):
         client.download_original(UnsplashPhoto("abc", "t", None, "h", GOOD_LOCATION))
+
+
+def test_a_missing_access_key_is_reported_plainly_without_calling_unsplash(
+    settings: Settings,
+) -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200, json=[])
+
+    unconfigured = settings.model_copy(update={"unsplash_access_key": ""})
+    client = HttpxUnsplashClient(unconfigured, transport=httpx.MockTransport(handler))
+
+    with pytest.raises(UnsplashNotConfigured, match="UNSPLASH_ACCESS_KEY"):
+        client.list_latest(1)
+    assert calls == []
