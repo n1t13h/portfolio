@@ -1,24 +1,12 @@
 """Admin routes to start the Unsplash sync and see how it is doing."""
 
-from datetime import datetime
-
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 
 from app.api.admin.deps import Auditor, get_auditor
-from app.api.schemas import CamelModel
+from app.schemas.sync import SyncStatusOut
 from app.services.sync import SyncAlreadyRunning, SyncService
 
 router = APIRouter(prefix="/sync", tags=["admin-sync"])
-
-
-class SyncStatusOut(CamelModel):
-    running: bool
-    last_started_at: datetime | None
-    last_finished_at: datetime | None
-    last_imported: int
-    last_error: str | None
-    rate_limit_remaining: int | None
-    pending: int
 
 
 def get_sync_service(request: Request) -> SyncService:

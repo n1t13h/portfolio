@@ -277,7 +277,7 @@ def test_export_script_produces_a_seed_the_backend_accepts(tmp_path: Path) -> No
         check=True,
         capture_output=True,
     )
-    from app.services.seed import SeedData
+    from app.schemas.seed import SeedData
 
     data = SeedData.model_validate_json(out.read_text())
     snapshot_ids = {p.id for p in data.photos}

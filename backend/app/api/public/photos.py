@@ -3,12 +3,12 @@
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse
 
+from app.api.params import ResourceId
 from app.api.public.caching import cached_json
 from app.api.public.deps import get_public_views
-from app.api.public.schemas import photo_out
-from app.api.schemas import ResourceId
 from app.core.deps import get_storage
 from app.integrations.storage import Bucket, Storage
+from app.services.mappers import public_photo
 from app.services.public_views import PublicViews
 
 router = APIRouter(prefix="/photos", tags=["photos"])
@@ -22,7 +22,7 @@ def list_photos(
     views: PublicViews = Depends(get_public_views),
     storage: Storage = Depends(get_storage),
 ) -> Response:
-    return cached_json(request, [photo_out(p, storage) for p in views.photos()])
+    return cached_json(request, [public_photo(p, storage) for p in views.photos()])
 
 
 @router.get("/{photo_id}/download")

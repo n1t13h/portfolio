@@ -1,19 +1,13 @@
 """Admin login, logout and session check."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, Field
 
 from app.api.admin.deps import SESSION_COOKIE, client_ip, get_auth_service, require_admin
 from app.models import Admin
+from app.schemas.auth import LoginBody
 from app.services.auth import AuthService, InvalidCredentials, LockedOut
 
 router = APIRouter(prefix="/auth", tags=["admin-auth"])
-
-
-class LoginBody(BaseModel):
-    username: str = Field(max_length=64)
-    password: str = Field(max_length=256)
-    code: str = Field(max_length=64)  # 6-digit TOTP or a recovery code
 
 
 @router.post("/login")

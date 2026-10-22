@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.models import Chapter, Collection, Photo, Status
+from app.schemas.collections import SLUG_PATTERN
 from app.services.ordering import apply_order
 
-SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 COLLECTION_FIELDS = {"slug", "title", "place", "year", "intro"}
 CHAPTER_FIELDS = {"title", "note"}
 
