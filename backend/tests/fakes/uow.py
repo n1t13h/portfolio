@@ -360,6 +360,9 @@ class FakeSyncStateRepository(AbstractSyncStateRepository):
     def __init__(self, store: InMemoryStore) -> None:
         self._store = store
 
+    def get(self) -> SyncState | None:
+        return self._store.sync_state
+
     def get_or_create(self) -> SyncState:
         if self._store.sync_state is None:
             state = SyncState(id=1, pending={}, skipped={})
@@ -412,6 +415,7 @@ class FakeUnitOfWork(AbstractUnitOfWork):
         self.commits = 0
         self._snapshot: dict[str, Any] | None = None
         self._commit_error: Exception | None = None
+        self._commits_before_error = 0
 
     def __enter__(self) -> "FakeUnitOfWork":
         self._snapshot = self.store.snapshot()
@@ -419,8 +423,11 @@ class FakeUnitOfWork(AbstractUnitOfWork):
 
     def commit(self) -> None:
         if self._commit_error is not None:
-            error, self._commit_error = self._commit_error, None
-            raise error
+            if self._commits_before_error > 0:
+                self._commits_before_error -= 1
+            else:
+                error, self._commit_error = self._commit_error, None
+                raise error
         self.store.check_constraints()
         self.commits += 1
         self._snapshot = self.store.snapshot()
@@ -432,9 +439,10 @@ class FakeUnitOfWork(AbstractUnitOfWork):
     def flush(self) -> None:
         pass
 
-    def fail_next_commit(self, error: Exception) -> None:
-        """Make the next commit raise `error` (e.g. to test cleanup after a failed save)."""
+    def fail_next_commit(self, error: Exception, after: int = 0) -> None:
+        """Make a commit raise `error` once: the next one, or the one after `after` successes."""
         self._commit_error = error
+        self._commits_before_error = after
 
     @property
     def audit_actions(self) -> list[str]:

@@ -13,6 +13,10 @@ from app.models import SyncState
 
 class AbstractSyncStateRepository(ABC):
     @abstractmethod
+    def get(self) -> SyncState | None:
+        """The state row if it exists. Unlike `get_or_create`, never writes."""
+
+    @abstractmethod
     def get_or_create(self) -> SyncState:
         """The single state row, creating it if needed.
 
@@ -31,6 +35,9 @@ class AbstractSyncStateRepository(ABC):
 class SqlAlchemySyncStateRepository(AbstractSyncStateRepository):
     def __init__(self, session: Session) -> None:
         self._s = session
+
+    def get(self) -> SyncState | None:
+        return self._s.get(SyncState, 1)
 
     def get_or_create(self) -> SyncState:
         row = self._s.get(SyncState, 1)

@@ -339,3 +339,61 @@ def test_two_processes_racing_to_create_the_state_row_do_not_break_taking_the_lo
     service.acquire()  # does not raise
 
     assert state(fake_uow).running is True
+
+
+# -- robustness ---------------------------------------------------------------------------
+
+
+def test_a_failure_while_a_run_is_starting_still_releases_the_lock_and_keeps_saved_state(
+    service: SyncService, fake_uow: FakeUnitOfWork
+) -> None:
+    service.acquire()
+    with fake_uow as uow:
+        row = uow.sync_state.get_or_create()
+        row.pending, row.skipped = {"x": 1}, {"y": "failed"}
+        uow.commit()
+    fake_uow.fail_next_commit(RuntimeError("database is locked"))
+
+    result = service.execute()  # its first commit fails
+
+    assert result.error is not None and "database is locked" in result.error
+    assert state(fake_uow).running is False  # not stuck as 'already running' for an hour
+    assert (state(fake_uow).pending, state(fake_uow).skipped) == ({"x": 1}, {"y": "failed"})
+    service.acquire()  # and a new run may start
+
+
+def test_asking_for_the_status_never_writes(service: SyncService, fake_uow: FakeUnitOfWork) -> None:
+    status = service.status()
+    assert (status.running, status.last_imported, status.pending) == (False, 0, 0)
+    assert fake_uow.commits == 0 and fake_uow.store.sync_state is None
+
+
+def test_a_photo_the_admin_deletes_during_a_run_is_not_forgotten_by_the_run(
+    service: SyncService,
+    unsplash: FakeUnsplash,
+    storage: FakeStorage,
+    settings: Settings,
+    fake_uow: FakeUnitOfWork,
+) -> None:
+    unsplash.ids = ["k"]
+    service.run()
+    deleted_id = photos(fake_uow)["k"].id
+
+    unsplash.ids = ["new", "k"]
+    original_get = unsplash.get_photo
+    deleted = {"done": False}
+
+    def get_photo_while_the_admin_deletes(photo_id: str) -> Any:
+        if not deleted["done"]:  # the admin deletes k in the middle of the run
+            deleted["done"] = True
+            PhotoService(lambda: fake_uow, storage, settings).delete(deleted_id)
+        return original_get(photo_id)
+
+    unsplash.get_photo = get_photo_while_the_admin_deletes  # type: ignore[method-assign]
+
+    service.run()
+
+    assert state(fake_uow).skipped == {"k": "deleted"}  # the run's final write kept it
+    unsplash.get_calls.clear()
+    service.run(full=True)
+    assert "k" not in photos(fake_uow) and "k" not in unsplash.get_calls

@@ -48,3 +48,13 @@ def test_a_released_lock_can_be_taken_again(uow: AbstractUnitOfWork) -> None:
         uow.commit()
     with uow:
         assert uow.sync_state.try_acquire(at(1), at(1) - HOUR) is True
+
+
+def test_peeking_at_the_state_never_creates_it(uow: AbstractUnitOfWork) -> None:
+    with uow:
+        assert uow.sync_state.get() is None
+        uow.sync_state.get_or_create()
+        uow.commit()
+    with uow:
+        row = uow.sync_state.get()
+        assert row is not None and row.id == 1

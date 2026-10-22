@@ -9,7 +9,7 @@ the network.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from app.core.clock import Clock
@@ -41,13 +41,15 @@ class SyncResult:
 
 @dataclass
 class _Progress:
-    pending: dict[str, int]
-    skipped: dict[str, str]
+    """What this run has learned. Persisted only in `_finish`, merged with what others wrote."""
+
+    pending: dict[str, int] = field(default_factory=dict)
+    skipped: dict[str, str] = field(default_factory=dict)  # as of the start; used to skip ids
+    failed_now: dict[str, str] = field(default_factory=dict)  # given up on during this run
+    errors: list[str] = field(default_factory=list)
     imported: int = 0
     stopped_early: bool = False
-
-    def __post_init__(self) -> None:
-        self.errors: list[str] = []
+    loaded: bool = False  # False if the run could not even read its saved state
 
 
 class SyncService:
@@ -82,8 +84,17 @@ class SyncService:
 
     def status(self) -> SyncStatusOut:
         with self._uow() as uow:
-            row = uow.sync_state.get_or_create()
-            uow.commit()
+            row = uow.sync_state.get()
+            if row is None:  # nothing has ever run
+                return SyncStatusOut(
+                    running=False,
+                    last_started_at=None,
+                    last_finished_at=None,
+                    last_imported=0,
+                    last_error=None,
+                    rate_limit_remaining=None,
+                    pending=0,
+                )
             started = row.last_started_at
             fresh = started is not None and _aware(started) > self._clock.now() - STALE_LOCK
             return SyncStatusOut(
@@ -104,21 +115,27 @@ class SyncService:
 
     def execute(self, full: bool = False) -> SyncResult:
         """Do the sync. The caller must hold the lock (see `acquire`). Never raises."""
-        with self._uow() as uow:
-            row = uow.sync_state.get_or_create()
-            skipped = dict(row.skipped)
-            if full:  # a full resync retries failures, but never what the admin deleted
-                skipped = {k: v for k, v in skipped.items() if v != "failed"}
-            progress = _Progress(pending=dict(row.pending), skipped=skipped)
-            uow.commit()
+        progress = _Progress()
         try:
+            self._load_state(full, progress)
             self._import_new(full, progress)
         except Exception as exc:
             log.exception("sync crashed")
             progress.errors.append(f"sync crashed: {exc}")
         finally:
-            result = self._finish(progress)  # always release the lock, even on Ctrl-C
+            result = self._finish(progress, full)  # always release the lock, even on Ctrl-C
         return result
+
+    def _load_state(self, full: bool, progress: _Progress) -> None:
+        with self._uow() as uow:
+            row = uow.sync_state.get_or_create()
+            skipped = dict(row.skipped)
+            if full:  # a full resync retries failures, but never what the admin deleted
+                skipped = {k: v for k, v in skipped.items() if v != "failed"}
+            progress.pending = dict(row.pending)
+            progress.skipped = skipped
+            uow.commit()
+        progress.loaded = True
 
     def _import_new(self, full: bool, progress: _Progress) -> None:
         with self._uow() as uow:
@@ -176,7 +193,7 @@ class SyncService:
             failures = progress.pending.get(unsplash_id, 0) + 1
             if failures >= MAX_FAILURES:
                 progress.pending.pop(unsplash_id, None)
-                progress.skipped[unsplash_id] = "failed"
+                progress.failed_now[unsplash_id] = "failed"
                 progress.errors.append(
                     f"{unsplash_id}: giving up after {failures} failures ({exc})"
                 )
@@ -188,7 +205,7 @@ class SyncService:
         progress.imported += 1
         return True
 
-    def _finish(self, progress: _Progress) -> SyncResult:
+    def _finish(self, progress: _Progress, full: bool) -> SyncResult:
         error = "; ".join(progress.errors) or None
         with self._uow() as uow:
             row = uow.sync_state.get_or_create()
@@ -197,8 +214,12 @@ class SyncService:
             row.last_imported = progress.imported
             row.last_error = error
             row.rate_limit_remaining = self._client.rate_limit_remaining
-            row.pending = progress.pending
-            row.skipped = progress.skipped
+            if progress.loaded:  # otherwise leave the saved state exactly as it was
+                row.pending = progress.pending
+                # Build on what is stored *now*, not on the snapshot from the start: the admin may
+                # have deleted photos while this ran, and those must stay remembered.
+                kept = {k: v for k, v in row.skipped.items() if not (full and v == "failed")}
+                row.skipped = {**kept, **progress.failed_now}
             uow.commit()
         return SyncResult(progress.imported, progress.stopped_early, error)
 
