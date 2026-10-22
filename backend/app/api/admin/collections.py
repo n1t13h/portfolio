@@ -56,7 +56,7 @@ def update(
     body: CollectionPatch,
     collections: CollectionService = Depends(get_collection_service),
 ) -> CollectionOut:
-    collection = collections.update_collection(collection_id, body.model_dump(exclude_unset=True))
+    collection = collections.update_collection(collection_id, body)
     return collection
 
 

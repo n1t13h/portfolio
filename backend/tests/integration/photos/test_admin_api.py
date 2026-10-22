@@ -190,3 +190,12 @@ def test_patch_can_clear_place(admin_client: TestClient, storage: FakeStorage, b
     resp = admin_client.patch(f"{base}/{photo['id']}", json={"place": None})
     assert resp.status_code == 200
     assert resp.json()["place"] is None
+
+
+def test_photo_edits_refuse_fields_they_do_not_own(
+    admin_client: TestClient, storage: FakeStorage, base: str
+) -> None:
+    photo = add_photo(admin_client, storage, base)
+    resp = admin_client.patch(f"{base}/{photo['id']}", json={"status": "published"})
+    assert resp.status_code == 422
+    assert admin_client.get(base).json()[0]["status"] == "draft"

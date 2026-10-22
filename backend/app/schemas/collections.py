@@ -1,6 +1,6 @@
 """Admin collection and chapter models."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import Status
 from app.schemas.base import CamelModel
@@ -39,6 +39,8 @@ class CollectionCreate(BaseModel):
 
 
 class CollectionPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     slug: str | None = Field(default=None, pattern=SLUG_PATTERN)
     title: str | None = None
     place: str | None = None
@@ -60,5 +62,7 @@ class ChapterCreate(BaseModel):
 
 
 class ChapterPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: str | None = None
     note: str | None = None

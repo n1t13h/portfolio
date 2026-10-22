@@ -11,7 +11,6 @@ from app.core.errors import InvalidRequest
 
 VARIANT_EDGES = (800, 1600, 2400)
 DOWNLOAD_EDGE = 2400
-MAX_PIXELS = 100_000_000
 WEBP_QUALITY = 82
 JPEG_QUALITY = 88
 
@@ -29,7 +28,7 @@ class ProcessedImage:
     download_jpeg: bytes = field(repr=False)
 
 
-def process_jpeg(data: bytes, *, max_pixels: int = MAX_PIXELS) -> ProcessedImage:
+def process_jpeg(data: bytes, *, max_pixels: int) -> ProcessedImage:
     img = _open_verified_jpeg(data, max_pixels)
     exif = img.getexif()  # read before the transpose below drops the orientation tag
     camera_info, taken_at = _read_exif(exif)

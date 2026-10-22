@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, Field, ValidationInfo, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from app.models import Status
 from app.schemas.base import CamelModel, storage_keys_to_urls
@@ -38,6 +38,8 @@ class PhotoOut(CamelModel):
 
 
 class PhotoPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: str | None = None
     place: str | None = None
 

@@ -6,24 +6,27 @@ from pathlib import Path
 import pytest
 from PIL import ExifTags, Image
 
+from app.core.config import Settings
 from app.services.images import InvalidImage, process_jpeg
 from tests.support.images import make_jpeg, rich_exif
+
+PIXELS: int = Settings.model_fields["max_image_pixels"].default  # the configured limit
 
 
 def test_rejects_png_renamed_to_jpg() -> None:
     with pytest.raises(InvalidImage):
-        process_jpeg(make_jpeg((100, 100), fmt="PNG"))
+        process_jpeg(make_jpeg((100, 100), fmt="PNG"), max_pixels=PIXELS)
 
 
 def test_rejects_corrupt_jpeg() -> None:
     data = make_jpeg((400, 300))
     with pytest.raises(InvalidImage):
-        process_jpeg(data[: len(data) // 2])
+        process_jpeg(data[: len(data) // 2], max_pixels=PIXELS)
 
 
 def test_rejects_garbage_bytes() -> None:
     with pytest.raises(InvalidImage):
-        process_jpeg(b"not an image at all")
+        process_jpeg(b"not an image at all", max_pixels=PIXELS)
 
 
 def test_rejects_image_over_pixel_limit_before_decoding() -> None:
@@ -32,7 +35,7 @@ def test_rejects_image_over_pixel_limit_before_decoding() -> None:
 
 
 def test_variants_have_expected_long_edges() -> None:
-    result = process_jpeg(make_jpeg((3000, 2000)))
+    result = process_jpeg(make_jpeg((3000, 2000)), max_pixels=PIXELS)
     assert set(result.variants) == {800, 1600, 2400}
     for edge, data in result.variants.items():
         with Image.open(io.BytesIO(data)) as img:
@@ -44,27 +47,27 @@ def test_variants_have_expected_long_edges() -> None:
 
 
 def test_small_image_is_not_upscaled() -> None:
-    result = process_jpeg(make_jpeg((500, 300)))
+    result = process_jpeg(make_jpeg((500, 300)), max_pixels=PIXELS)
     for data in result.variants.values():
         with Image.open(io.BytesIO(data)) as img:
             assert img.size == (500, 300)
 
 
 def test_aspect_ratio_of_portrait_image() -> None:
-    assert process_jpeg(make_jpeg((2000, 3000))).aspect_ratio == 0.667
+    assert process_jpeg(make_jpeg((2000, 3000)), max_pixels=PIXELS).aspect_ratio == 0.667
 
 
 def test_exif_orientation_is_applied_to_outputs_and_ratio() -> None:
     exif = Image.Exif()
     exif[ExifTags.Base.Orientation] = 6  # rotate 90° on display
-    result = process_jpeg(make_jpeg((3000, 2000), exif=exif))
+    result = process_jpeg(make_jpeg((3000, 2000), exif=exif), max_pixels=PIXELS)
     assert result.aspect_ratio == 0.667
     with Image.open(io.BytesIO(result.variants[800])) as img:
         assert img.size[1] == 800
 
 
 def test_exif_fields_extracted() -> None:
-    result = process_jpeg(make_jpeg(exif=rich_exif()))
+    result = process_jpeg(make_jpeg(exif=rich_exif()), max_pixels=PIXELS)
     assert result.exif == {
         "camera": "Sony ZV-E10",
         "focal_length": 38.0,
@@ -77,13 +80,13 @@ def test_exif_fields_extracted() -> None:
 
 
 def test_missing_exif_gives_empty_fields() -> None:
-    result = process_jpeg(make_jpeg())
+    result = process_jpeg(make_jpeg(), max_pixels=PIXELS)
     assert result.exif == {}
     assert result.taken_at is None
 
 
 def test_gps_stripped_from_all_outputs() -> None:
-    result = process_jpeg(make_jpeg(exif=rich_exif()))
+    result = process_jpeg(make_jpeg(exif=rich_exif()), max_pixels=PIXELS)
     outputs = [*result.variants.values(), result.download_jpeg]
     for data in outputs:
         with Image.open(io.BytesIO(data)) as img:
@@ -105,7 +108,7 @@ def test_accepts_multi_picture_jpeg_from_phones() -> None:
     with Image.open(io.BytesIO(data)) as probe:
         assert probe.format == "MPO"  # Pillow's name for it; it is still a JPEG file
 
-    result = process_jpeg(data)
+    result = process_jpeg(data, max_pixels=PIXELS)
 
     assert result.aspect_ratio == 1.333
     with Image.open(io.BytesIO(result.download_jpeg)) as out:
@@ -130,7 +133,7 @@ def test_large_photo_does_not_need_a_gigabyte(tmp_path: Path) -> None:
         "from app.services.images import process_jpeg\n"
         "data = open(sys.argv[1], 'rb').read()\n"
         "before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss\n"
-        "process_jpeg(data)\n"
+        f"process_jpeg(data, max_pixels={PIXELS})\n"
         "after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss\n"
         "print(after - before)\n"
     )

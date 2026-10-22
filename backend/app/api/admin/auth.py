@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
-from app.api.admin.deps import SESSION_COOKIE, client_ip, get_auth_service, require_admin
+from app.api.admin.deps import SESSION_COOKIE, get_auth_service, require_admin
+from app.core.deps import client_ip
 from app.schemas.auth import AdminOut, LoginBody
 from app.services.auth import AuthService, InvalidCredentials, LockedOut
 

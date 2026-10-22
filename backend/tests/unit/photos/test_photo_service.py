@@ -9,6 +9,7 @@ from app.core.config import Settings
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.integrations.storage import Bucket
 from app.models import Photo, Status
+from app.schemas.photos import PhotoPatch
 from app.services.audit import AuditTrail
 from app.services.images import InvalidImage
 from app.services.photos import PhotoService
@@ -216,7 +217,7 @@ def test_list_all_follows_the_global_order(service: PhotoService, storage: FakeS
 def test_get_and_every_edit_of_an_unknown_photo_is_not_found(service: PhotoService) -> None:
     for call in (
         lambda: service.get("nope"),
-        lambda: service.update("nope", {"title": "x"}),
+        lambda: service.update("nope", PhotoPatch(title="x")),
         lambda: service.set_status("nope", Status.PUBLISHED),
         lambda: service.set_allow_download("nope", True),
         lambda: service.delete("nope"),
@@ -227,7 +228,7 @@ def test_get_and_every_edit_of_an_unknown_photo_is_not_found(service: PhotoServi
 
 def test_update_changes_title_and_place(service: PhotoService, storage: FakeStorage) -> None:
     [pid, *_] = three(service, storage)
-    updated = service.update(pid, {"title": "Dusk", "place": "Ghat"})
+    updated = service.update(pid, PhotoPatch(title="Dusk", place="Ghat"))
     assert (updated.title, updated.place) == ("Dusk", "Ghat")
     assert service.get(pid).title == "Dusk"
 
@@ -236,16 +237,10 @@ def test_a_place_can_be_cleared_but_a_title_cannot(
     service: PhotoService, storage: FakeStorage
 ) -> None:
     [pid, *_] = three(service, storage)
-    service.update(pid, {"place": "Ghat"})
-    assert service.update(pid, {"place": None}).place is None
+    service.update(pid, PhotoPatch(place="Ghat"))
+    assert service.update(pid, PhotoPatch(place=None)).place is None
     with pytest.raises(InvalidRequest, match="title"):
-        service.update(pid, {"title": None})
-
-
-def test_only_title_and_place_are_editable(service: PhotoService, storage: FakeStorage) -> None:
-    [pid, *_] = three(service, storage)
-    with pytest.raises(InvalidRequest):
-        service.update(pid, {"status": "published"})
+        service.update(pid, PhotoPatch(title=None))
 
 
 def test_publishing_and_unpublishing(service: PhotoService, storage: FakeStorage) -> None:
@@ -340,7 +335,7 @@ def test_every_write_commits_exactly_once(
 ) -> None:
     [pid, *_] = three(service, storage)
     before = fake_uow.commits
-    service.update(pid, {"title": "x"})
+    service.update(pid, PhotoPatch(title="x"))
     service.set_status(pid, Status.PUBLISHED)
     service.set_allow_download(pid, True)
     service.delete(pid)
@@ -414,7 +409,7 @@ def test_manual_uploads_and_every_admin_edit_are_audited_with_the_ip(
     audited: PhotoService, storage: FakeStorage, fake_uow: FakeUnitOfWork
 ) -> None:
     pid = audited.confirm_upload(uploaded(audited, storage, make_jpeg((300, 200)))).id
-    audited.update(pid, {"title": "x"})
+    audited.update(pid, PhotoPatch(title="x"))
     audited.set_status(pid, Status.PUBLISHED)
     audited.set_status(pid, Status.DRAFT)
     audited.set_allow_download(pid, True)
@@ -457,5 +452,5 @@ def test_without_a_trail_nothing_is_audited(
     service: PhotoService, storage: FakeStorage, fake_uow: FakeUnitOfWork
 ) -> None:
     [pid, *_] = three(service, storage)
-    service.update(pid, {"title": "x"})
+    service.update(pid, PhotoPatch(title="x"))
     assert fake_uow.store.audit == []

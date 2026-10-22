@@ -3,14 +3,21 @@
 import argparse
 import getpass
 import sys
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.core.clock import Clock, SystemClock
 from app.core.config import Settings, get_settings
 from app.core.db import make_engine, make_session_factory
 from app.integrations.notifier import Notifier, build_notifier
+from app.integrations.storage import R2Storage
+from app.integrations.unsplash import HttpxUnsplashClient
 from app.services.auth import AdminExists, AuthService
+from app.services.backup import BackupService
 from app.services.contact import ContactService
+from app.services.seed import seed_from_json
+from app.services.sync import SyncAlreadyRunning, SyncService
 from app.uow import SqlAlchemyUnitOfWork, UnitOfWorkFactory
 
 
@@ -73,10 +80,6 @@ def notify_pending(
 
 
 def sync(full: bool) -> int:
-    from app.integrations.storage import R2Storage
-    from app.integrations.unsplash import HttpxUnsplashClient
-    from app.services.sync import SyncAlreadyRunning, SyncService
-
     settings = get_settings()
     service = SyncService(
         _uow_factory(settings),
@@ -99,10 +102,6 @@ def sync(full: bool) -> int:
 
 
 def seed(path: Path) -> int:
-    from app.integrations.storage import R2Storage
-    from app.integrations.unsplash import HttpxUnsplashClient
-    from app.services.seed import seed_from_json
-
     if not path.exists():
         print(f"{path} not found. Create it with: npm run photos:export-seed", file=sys.stderr)
         return 1
@@ -127,11 +126,6 @@ def seed(path: Path) -> int:
 
 
 def backup() -> int:
-    from datetime import UTC, datetime
-
-    from app.integrations.storage import R2Storage
-    from app.services.backup import BackupService
-
     settings = get_settings()
     key = BackupService(make_engine(settings.database_url), R2Storage(settings)).run(
         datetime.now(UTC)
@@ -154,19 +148,15 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("notify-pending", help="send Telegram notifications that failed earlier")
     sub.add_parser("backup", help="copy the database to the private bucket, prune old copies")
     args = parser.parse_args(argv)
-    if args.command == "create-admin":
-        return create_admin(args.username)
-    if args.command == "reset-admin":
-        return reset_admin(args.username)
-    if args.command == "notify-pending":
-        return notify_pending()
-    if args.command == "backup":
-        return backup()
-    if args.command == "seed":
-        return seed(args.file)
-    if args.command == "sync":
-        return sync(args.full)
-    return 2
+    commands: dict[str, Callable[[], int]] = {
+        "create-admin": lambda: create_admin(args.username),
+        "reset-admin": lambda: reset_admin(args.username),
+        "notify-pending": notify_pending,
+        "backup": backup,
+        "seed": lambda: seed(args.file),
+        "sync": lambda: sync(args.full),
+    }
+    return commands[args.command]()
 
 
 if __name__ == "__main__":

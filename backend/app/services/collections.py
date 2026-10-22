@@ -2,24 +2,27 @@
 
 import re
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.models import Chapter, Collection, Status
-from app.schemas.collections import SLUG_PATTERN, ChapterDraft, ChapterOut, CollectionOut
+from app.schemas.collections import (
+    SLUG_PATTERN,
+    ChapterDraft,
+    ChapterOut,
+    ChapterPatch,
+    CollectionOut,
+    CollectionPatch,
+)
 from app.services.audit import NO_AUDIT, AuditTrail
 from app.services.covers import prune_covers
 from app.services.ordering import apply_order
 from app.uow import AbstractUnitOfWork, UnitOfWorkFactory
 
-COLLECTION_FIELDS = {"slug", "title", "place", "year", "intro"}
-CHAPTER_FIELDS = {"title", "note"}
 
-
-def _checked_changes(changes: Mapping[str, Any], allowed: set[str]) -> Mapping[str, Any]:
-    if not set(changes) <= allowed:
-        raise InvalidRequest(f"only {sorted(allowed)} can be edited")
+def _changes(patch: CollectionPatch | ChapterPatch) -> dict[str, Any]:
+    changes: dict[str, Any] = patch.model_dump(exclude_unset=True)
     if any(value is None for value in changes.values()):
         raise InvalidRequest("fields cannot be null")
     return changes
@@ -112,8 +115,8 @@ class CollectionService:
             uow.commit()
             return CollectionOut.model_validate(self._collection(uow, collection.id))
 
-    def update_collection(self, collection_id: str, changes: Mapping[str, Any]) -> CollectionOut:
-        changes = _checked_changes(changes, COLLECTION_FIELDS)
+    def update_collection(self, collection_id: str, patch: CollectionPatch) -> CollectionOut:
+        changes = _changes(patch)
         with self._uow() as uow:
             collection = self._collection(uow, collection_id)
             if "slug" in changes:
@@ -176,8 +179,8 @@ class CollectionService:
             uow.commit()
             return ChapterOut.model_validate(chapter)
 
-    def update_chapter(self, chapter_id: str, changes: Mapping[str, Any]) -> ChapterOut:
-        changes = _checked_changes(changes, CHAPTER_FIELDS)
+    def update_chapter(self, chapter_id: str, patch: ChapterPatch) -> ChapterOut:
+        changes = _changes(patch)
         with self._uow() as uow:
             chapter = self._chapter(uow, chapter_id)
             for name, value in changes.items():

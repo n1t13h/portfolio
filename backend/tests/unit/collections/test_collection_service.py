@@ -4,7 +4,12 @@ import pytest
 
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.models import Status
-from app.schemas.collections import ChapterDraft, CollectionOut
+from app.schemas.collections import (
+    ChapterDraft,
+    ChapterPatch,
+    CollectionOut,
+    CollectionPatch,
+)
 from app.services.audit import AuditTrail
 from app.services.collections import CollectionService
 from tests.fakes import FakeClock, FakeUnitOfWork
@@ -67,7 +72,7 @@ def test_getting_an_unknown_collection_is_not_found(service: CollectionService) 
 
 def test_updating_edits_the_given_fields_only(service: CollectionService) -> None:
     created = collection(service, "goa", place="India")
-    updated = service.update_collection(created.id, {"title": "Goa 2024", "intro": "Rain"})
+    updated = service.update_collection(created.id, CollectionPatch(title="Goa 2024", intro="Rain"))
     assert (updated.title, updated.intro, updated.place, updated.slug) == (
         "Goa 2024",
         "Rain",
@@ -80,17 +85,16 @@ def test_a_collection_may_keep_its_own_slug_but_not_take_another(
     service: CollectionService,
 ) -> None:
     a, b = collection(service, "a"), collection(service, "b")
-    assert service.update_collection(a.id, {"slug": "a"}).slug == "a"
+    assert service.update_collection(a.id, CollectionPatch(slug="a")).slug == "a"
     with pytest.raises(Conflict):
-        service.update_collection(a.id, {"slug": "b"})
+        service.update_collection(a.id, CollectionPatch(slug="b"))
     assert service.get_collection(b.id).slug == "b"
 
 
-def test_updates_reject_unknown_fields_nulls_and_bad_slugs(service: CollectionService) -> None:
+def test_a_collection_field_cannot_be_nulled(service: CollectionService) -> None:
     created = collection(service)
-    for changes in ({"status": "published"}, {"title": None}, {"slug": "Not Valid"}):
-        with pytest.raises(InvalidRequest):
-            service.update_collection(created.id, changes)
+    with pytest.raises(InvalidRequest):
+        service.update_collection(created.id, CollectionPatch(title=None))
 
 
 def test_publishing_and_unpublishing(service: CollectionService) -> None:
@@ -101,7 +105,7 @@ def test_publishing_and_unpublishing(service: CollectionService) -> None:
 
 def test_every_edit_of_an_unknown_collection_is_not_found(service: CollectionService) -> None:
     for call in (
-        lambda: service.update_collection("nope", {"title": "x"}),
+        lambda: service.update_collection("nope", CollectionPatch(title="x")),
         lambda: service.set_status("nope", Status.PUBLISHED),
         lambda: service.delete_collection("nope"),
         lambda: service.set_covers("nope", []),
@@ -162,13 +166,11 @@ def test_chapters_are_appended_in_order_and_show_up_on_the_collection(
 
 def test_a_chapter_can_be_edited_but_not_nulled(service: CollectionService) -> None:
     chapter = service.create_chapter(collection(service).id, "Arrival")
-    assert service.update_chapter(chapter.id, {"note": "Monsoon"}).note == "Monsoon"
+    assert service.update_chapter(chapter.id, ChapterPatch(note="Monsoon")).note == "Monsoon"
     with pytest.raises(InvalidRequest):
-        service.update_chapter(chapter.id, {"title": None})
-    with pytest.raises(InvalidRequest):
-        service.update_chapter(chapter.id, {"position": 5})
+        service.update_chapter(chapter.id, ChapterPatch(title=None))
     with pytest.raises(NotFound, match="chapter"):
-        service.update_chapter("nope", {"title": "x"})
+        service.update_chapter("nope", ChapterPatch(title="x"))
 
 
 def test_chapters_reorder_atomically(service: CollectionService) -> None:
@@ -331,10 +333,10 @@ def test_every_write_commits_once_and_reads_never_commit(
 ) -> None:
     created = collection(service)
     before = fake_uow.commits
-    service.update_collection(created.id, {"title": "x"})
+    service.update_collection(created.id, CollectionPatch(title="x"))
     service.set_status(created.id, Status.PUBLISHED)
     chapter = service.create_chapter(created.id)
-    service.update_chapter(chapter.id, {"title": "y"})
+    service.update_chapter(chapter.id, ChapterPatch(title="y"))
     assert fake_uow.commits - before == 4
 
     before = fake_uow.commits
@@ -349,7 +351,7 @@ def test_a_failed_write_changes_nothing(
     created = collection(service)
     fake_uow.fail_next_commit(RuntimeError("database is down"))
     with pytest.raises(RuntimeError):
-        service.update_collection(created.id, {"title": "changed"})
+        service.update_collection(created.id, CollectionPatch(title="changed"))
     assert service.get_collection(created.id).title == created.title
 
 
@@ -476,12 +478,12 @@ def test_every_collection_and_chapter_change_is_audited_with_the_ip(
     audited = CollectionService(lambda: fake_uow, AuditTrail(clock, "9.9.9.9"))
 
     col = audited.create_collection("goa", "Goa")
-    audited.update_collection(col.id, {"title": "Goa 2024"})
+    audited.update_collection(col.id, CollectionPatch(title="Goa 2024"))
     audited.set_status(col.id, Status.PUBLISHED)
     audited.set_status(col.id, Status.DRAFT)
     first = audited.create_chapter(col.id, "A")
     second = audited.create_chapter(col.id, "B")
-    audited.update_chapter(first.id, {"note": "n"})
+    audited.update_chapter(first.id, ChapterPatch(note="n"))
     audited.assign_photos(first.id, ["p1", "p2"])
     audited.reorder_photos(first.id, ["p2", "p1"])
     audited.set_covers(col.id, ["p1"])

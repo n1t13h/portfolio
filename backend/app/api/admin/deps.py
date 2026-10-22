@@ -2,7 +2,7 @@
 
 from fastapi import Depends, HTTPException, Request
 
-from app.core.deps import get_storage
+from app.core.deps import client_ip, get_storage
 from app.integrations.storage import Storage
 from app.schemas.auth import AdminOut
 from app.services.audit import AuditTrail
@@ -24,10 +24,6 @@ def csrf_guard(request: Request) -> None:
 def get_auth_service(request: Request) -> AuthService:
     state = request.app.state
     return AuthService(state.uow_factory, state.settings, state.clock)
-
-
-def client_ip(request: Request) -> str:
-    return request.client.host if request.client else ""
 
 
 def require_admin(request: Request, auth: AuthService = Depends(get_auth_service)) -> AdminOut:

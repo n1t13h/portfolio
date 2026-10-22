@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
+from app.core.deps import client_ip
 from app.schemas.contact import ContactBody
 from app.services.contact import ContactService, RateLimited
 
@@ -14,9 +15,8 @@ def contact(body: ContactBody, request: Request, background: BackgroundTasks) ->
         return {"status": "received"}
     state = request.app.state
     service = ContactService(state.uow_factory, state.notifier, state.settings, state.clock)
-    ip = request.client.host if request.client else ""
     try:
-        service.submit(body.name, body.email, body.message, ip)
+        service.submit(body.name, body.email, body.message, client_ip(request))
     except RateLimited:
         raise HTTPException(status_code=429, detail="too many messages, try again later") from None
     background.add_task(service.deliver_pending)  # after the response, so Telegram can't slow it

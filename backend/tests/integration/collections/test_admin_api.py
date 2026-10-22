@@ -302,3 +302,17 @@ def test_deleting_a_cover_photo_clears_it_from_the_collection(
     assert admin_client.delete(f"{admin_url}/photos/{photo}").status_code == 204
 
     assert get_collection(admin_client, admin_url, col["id"])["coverPhotoIds"] == []
+
+
+def test_collection_and_chapter_edits_refuse_fields_they_do_not_own(
+    admin_client: TestClient, admin_url: str
+) -> None:
+    col = add_collection(admin_client, admin_url, "goa")
+    chapter = add_chapter(admin_client, admin_url, col["id"], title="Arrival")
+    resp = admin_client.patch(f"{admin_url}/collections/{col['id']}", json={"status": "published"})
+    assert resp.status_code == 422
+    assert admin_client.get(f"{admin_url}/collections/{col['id']}").json()["status"] == "draft"
+    resp = admin_client.patch(f"{admin_url}/chapters/{chapter['id']}", json={"position": 5})
+    assert resp.status_code == 422
+    resp = admin_client.patch(f"{admin_url}/collections/{col['id']}", json={"slug": "Not Valid"})
+    assert resp.status_code == 422

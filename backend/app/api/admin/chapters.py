@@ -17,7 +17,7 @@ def update(
     body: ChapterPatch,
     collections: CollectionService = Depends(get_collection_service),
 ) -> ChapterOut:
-    chapter = collections.update_chapter(chapter_id, body.model_dump(exclude_unset=True))
+    chapter = collections.update_chapter(chapter_id, body)
     return chapter
 
 

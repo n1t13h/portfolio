@@ -46,7 +46,7 @@ def update(
     body: PhotoPatch,
     photos: PhotoService = Depends(get_photo_service),
 ) -> PhotoOut:
-    photo = photos.update(photo_id, body.model_dump(exclude_unset=True))
+    photo = photos.update(photo_id, body)
     return photo
 
 

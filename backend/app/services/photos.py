@@ -9,7 +9,7 @@ from app.core.config import Settings
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.integrations.storage import Bucket, Storage
 from app.models import Photo, Status
-from app.schemas.photos import PhotoOut, UploadTicketOut
+from app.schemas.photos import PhotoOut, PhotoPatch, UploadTicketOut
 from app.services import sync_state
 from app.services.audit import NO_AUDIT, AuditTrail
 from app.services.covers import prune_covers
@@ -20,7 +20,6 @@ from app.uow import AbstractUnitOfWork, UnitOfWorkFactory
 log = logging.getLogger(__name__)
 
 UPLOAD_URL_TTL_SECONDS = 600
-EDITABLE_FIELDS = {"title", "place"}
 IMMUTABLE = "public, max-age=31536000, immutable"  # variant files never change once written
 
 
@@ -144,9 +143,8 @@ class PhotoService:
         with self._uow() as uow:
             return self._out(self._get(uow, photo_id))
 
-    def update(self, photo_id: str, changes: Mapping[str, Any]) -> PhotoOut:
-        if not set(changes) <= EDITABLE_FIELDS:
-            raise InvalidRequest(f"only {sorted(EDITABLE_FIELDS)} can be edited")
+    def update(self, photo_id: str, patch: PhotoPatch) -> PhotoOut:
+        changes = patch.model_dump(exclude_unset=True)
         if "title" in changes and changes["title"] is None:
             raise InvalidRequest("title cannot be null")  # place may be cleared; title may not
         with self._uow() as uow:
