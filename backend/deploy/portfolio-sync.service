@@ -1,0 +1,18 @@
+# /etc/systemd/system/portfolio-sync.service
+[Unit]
+Description=Import new Unsplash photos as drafts
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=portfolio
+Group=portfolio
+WorkingDirectory=/opt/portfolio/backend
+EnvironmentFile=/etc/portfolio/backend.env
+ExecStart=/opt/portfolio/backend/.venv/bin/python -m app.cli sync
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/portfolio
