@@ -5,13 +5,12 @@ import uuid
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from sqlalchemy import func, select, update
-from sqlalchemy.orm import Session
-
 from app.core.errors import Conflict, InvalidRequest, NotFound
-from app.models import Chapter, Collection, Photo, Status
-from app.schemas.collections import SLUG_PATTERN
+from app.models import Chapter, Collection, Status
+from app.schemas.collections import SLUG_PATTERN, ChapterOut, CollectionOut
+from app.services.mappers import admin_chapter, admin_collection
 from app.services.ordering import apply_order
+from app.uow import AbstractUnitOfWork, UnitOfWorkFactory
 
 COLLECTION_FIELDS = {"slug", "title", "place", "year", "intro"}
 CHAPTER_FIELDS = {"title", "note"}
@@ -26,183 +25,213 @@ def _checked_changes(changes: Mapping[str, Any], allowed: set[str]) -> Mapping[s
 
 
 class CollectionService:
-    def __init__(self, session: Session) -> None:
-        self._db = session
+    def __init__(self, uow_factory: UnitOfWorkFactory) -> None:
+        self._uow = uow_factory
 
     # -- collections ----------------------------------------------------------------------
 
-    def list_collections(self) -> Sequence[Collection]:
-        return self._db.scalars(select(Collection).order_by(Collection.sort_position)).all()
+    def list_collections(self) -> list[CollectionOut]:
+        with self._uow() as uow:
+            return self._collections_out(uow, uow.collections.list_ordered())
 
-    def get_collection(self, collection_id: str) -> Collection:
-        collection = self._db.get(Collection, collection_id)
+    def get_collection(self, collection_id: str) -> CollectionOut:
+        with self._uow() as uow:
+            return self._collection_out(uow, self._collection(uow, collection_id))
+
+    def create_collection(
+        self, slug: str, title: str, place: str = "", year: str = "", intro: str = ""
+    ) -> CollectionOut:
+        with self._uow() as uow:
+            self._check_slug(uow, slug)
+            collection = Collection(
+                id=_new_id(),
+                slug=slug,
+                title=title,
+                place=place,
+                year=year,
+                intro=intro,
+                sort_position=uow.collections.next_sort_position(),
+            )
+            uow.collections.add(collection)
+            uow.commit()
+            return self._collection_out(uow, collection)
+
+    def update_collection(self, collection_id: str, changes: Mapping[str, Any]) -> CollectionOut:
+        changes = _checked_changes(changes, COLLECTION_FIELDS)
+        with self._uow() as uow:
+            collection = self._collection(uow, collection_id)
+            if "slug" in changes:
+                self._check_slug(uow, changes["slug"], ignore_id=collection_id)
+            for name, value in changes.items():
+                setattr(collection, name, value)
+            uow.commit()
+            return self._collection_out(uow, collection)
+
+    def set_status(self, collection_id: str, status: Status) -> CollectionOut:
+        with self._uow() as uow:
+            collection = self._collection(uow, collection_id)
+            collection.status = status
+            uow.commit()
+            return self._collection_out(uow, collection)
+
+    def delete_collection(self, collection_id: str) -> None:
+        with self._uow() as uow:
+            collection = self._collection(uow, collection_id)
+            chapter_ids = [ch.id for ch in uow.collections.list_chapters(collection_id)]
+            uow.photos.unassign_from_chapters(chapter_ids)
+            uow.collections.delete(collection)
+            uow.commit()
+
+    def reorder_collections(self, ordered_ids: Sequence[str]) -> None:
+        with self._uow() as uow:
+            apply_order(uow.collections.list_ordered(), ordered_ids, "sort_position")
+            uow.commit()
+
+    def set_covers(self, collection_id: str, photo_ids: Sequence[str]) -> CollectionOut:
+        with self._uow() as uow:
+            collection = self._collection(uow, collection_id)
+            if len(set(photo_ids)) != len(photo_ids):
+                raise InvalidRequest("duplicate photo ids")
+            if not set(photo_ids) <= uow.photos.ids_in_collection(collection_id):
+                raise InvalidRequest("covers must be photos in this collection")
+            collection.cover_photo_ids = list(photo_ids)
+            uow.commit()
+            return self._collection_out(uow, collection)
+
+    # -- chapters -------------------------------------------------------------------------
+
+    def create_chapter(self, collection_id: str, title: str = "", note: str = "") -> ChapterOut:
+        with self._uow() as uow:
+            self._collection(uow, collection_id)
+            chapter = Chapter(
+                id=_new_id(),
+                collection_id=collection_id,
+                title=title,
+                note=note,
+                position=uow.collections.next_chapter_position(collection_id),
+            )
+            uow.collections.add_chapter(chapter)
+            uow.commit()
+            return self._chapter_out(uow, chapter)
+
+    def update_chapter(self, chapter_id: str, changes: Mapping[str, Any]) -> ChapterOut:
+        changes = _checked_changes(changes, CHAPTER_FIELDS)
+        with self._uow() as uow:
+            chapter = self._chapter(uow, chapter_id)
+            for name, value in changes.items():
+                setattr(chapter, name, value)
+            uow.commit()
+            return self._chapter_out(uow, chapter)
+
+    def delete_chapter(self, chapter_id: str) -> None:
+        with self._uow() as uow:
+            chapter = self._chapter(uow, chapter_id)
+            collection_id = chapter.collection_id
+            uow.photos.unassign_from_chapters([chapter_id])
+            uow.collections.delete_chapter(chapter)
+            uow.flush()
+            self._prune_covers(uow, {collection_id})
+            uow.commit()
+
+    def reorder_chapters(self, collection_id: str, ordered_ids: Sequence[str]) -> None:
+        with self._uow() as uow:
+            self._collection(uow, collection_id)
+            apply_order(uow.collections.list_chapters(collection_id), ordered_ids, "position")
+            uow.commit()
+
+    # -- photos in chapters ---------------------------------------------------------------
+
+    def assign_photos(self, chapter_id: str, photo_ids: Sequence[str]) -> ChapterOut:
+        """Append photos to the chapter in the given order, moving them out of any other one."""
+        with self._uow() as uow:
+            chapter = self._chapter(uow, chapter_id)
+            if len(set(photo_ids)) != len(photo_ids):
+                raise InvalidRequest("duplicate photo ids")
+            photos = {p.id: p for p in uow.photos.get_many(photo_ids)}
+            if len(photos) != len(photo_ids):
+                raise InvalidRequest("unknown photo id")
+
+            old_chapters = [p.chapter_id for p in photos.values() if p.chapter_id]
+            left = uow.collections.collection_ids_of_chapters(old_chapters) - {
+                chapter.collection_id
+            }
+            position = uow.photos.next_position_in_chapter(chapter_id)
+            for photo_id in photo_ids:
+                photos[photo_id].chapter_id = chapter_id
+                photos[photo_id].position_in_chapter = position
+                position += 1
+            uow.flush()
+            self._prune_covers(uow, left)
+            uow.commit()
+            return self._chapter_out(uow, chapter)
+
+    def remove_photo(self, chapter_id: str, photo_id: str) -> None:
+        with self._uow() as uow:
+            chapter = self._chapter(uow, chapter_id)
+            photo = uow.photos.get(photo_id)
+            if photo is None or photo.chapter_id != chapter_id:
+                raise NotFound("photo is not in this chapter")
+            photo.chapter_id = None
+            uow.flush()
+            self._prune_covers(uow, {chapter.collection_id})
+            uow.commit()
+
+    def reorder_photos(self, chapter_id: str, ordered_ids: Sequence[str]) -> None:
+        with self._uow() as uow:
+            self._chapter(uow, chapter_id)
+            apply_order(uow.photos.list_in_chapter(chapter_id), ordered_ids, "position_in_chapter")
+            uow.commit()
+
+    # -- helpers --------------------------------------------------------------------------
+
+    @staticmethod
+    def _collection(uow: AbstractUnitOfWork, collection_id: str) -> Collection:
+        collection = uow.collections.get(collection_id)
         if collection is None:
             raise NotFound("collection not found")
         return collection
 
-    def create_collection(
-        self, slug: str, title: str, place: str = "", year: str = "", intro: str = ""
-    ) -> Collection:
-        self._check_slug(slug)
-        highest = self._db.scalar(select(func.max(Collection.sort_position)))
-        collection = Collection(
-            id=_new_id(),
-            slug=slug,
-            title=title,
-            place=place,
-            year=year,
-            intro=intro,
-            sort_position=0 if highest is None else highest + 1,
-        )
-        self._db.add(collection)
-        self._db.commit()
-        return collection
-
-    def update_collection(self, collection_id: str, changes: Mapping[str, Any]) -> Collection:
-        changes = _checked_changes(changes, COLLECTION_FIELDS)
-        collection = self.get_collection(collection_id)
-        if "slug" in changes:
-            self._check_slug(changes["slug"], ignore_id=collection_id)
-        for name, value in changes.items():
-            setattr(collection, name, value)
-        self._db.commit()
-        return collection
-
-    def set_status(self, collection_id: str, status: Status) -> Collection:
-        collection = self.get_collection(collection_id)
-        collection.status = status
-        self._db.commit()
-        return collection
-
-    def delete_collection(self, collection_id: str) -> None:
-        collection = self.get_collection(collection_id)
-        chapter_ids = [ch.id for ch in collection.chapters]
-        self._db.execute(
-            update(Photo).where(Photo.chapter_id.in_(chapter_ids)).values(chapter_id=None)
-        )
-        self._db.delete(collection)
-        self._db.commit()
-
-    def reorder_collections(self, ordered_ids: Sequence[str]) -> None:
-        apply_order(self.list_collections(), ordered_ids, "sort_position")
-        self._db.commit()
-
-    def set_covers(self, collection_id: str, photo_ids: Sequence[str]) -> Collection:
-        collection = self.get_collection(collection_id)
-        if len(set(photo_ids)) != len(photo_ids):
-            raise InvalidRequest("duplicate photo ids")
-        if not set(photo_ids) <= self._photo_ids_in(collection_id):
-            raise InvalidRequest("covers must be photos in this collection")
-        collection.cover_photo_ids = list(photo_ids)
-        self._db.commit()
-        return collection
-
-    # -- chapters -------------------------------------------------------------------------
-
-    def get_chapter(self, chapter_id: str) -> Chapter:
-        chapter = self._db.get(Chapter, chapter_id)
+    @staticmethod
+    def _chapter(uow: AbstractUnitOfWork, chapter_id: str) -> Chapter:
+        chapter = uow.collections.get_chapter(chapter_id)
         if chapter is None:
             raise NotFound("chapter not found")
         return chapter
 
-    def create_chapter(self, collection_id: str, title: str = "", note: str = "") -> Chapter:
-        collection = self.get_collection(collection_id)
-        position = max((ch.position for ch in collection.chapters), default=-1) + 1
-        chapter = Chapter(
-            id=_new_id(), collection_id=collection_id, title=title, note=note, position=position
-        )
-        self._db.add(chapter)
-        self._db.commit()
-        return chapter
-
-    def update_chapter(self, chapter_id: str, changes: Mapping[str, Any]) -> Chapter:
-        changes = _checked_changes(changes, CHAPTER_FIELDS)
-        chapter = self.get_chapter(chapter_id)
-        for name, value in changes.items():
-            setattr(chapter, name, value)
-        self._db.commit()
-        return chapter
-
-    def delete_chapter(self, chapter_id: str) -> None:
-        chapter = self.get_chapter(chapter_id)
-        collection_id = chapter.collection_id
-        self._db.execute(
-            update(Photo).where(Photo.chapter_id == chapter_id).values(chapter_id=None)
-        )
-        self._db.delete(chapter)
-        self._db.flush()
-        self._prune_covers({collection_id})
-        self._db.commit()
-
-    def reorder_chapters(self, collection_id: str, ordered_ids: Sequence[str]) -> None:
-        apply_order(self.get_collection(collection_id).chapters, ordered_ids, "position")
-        self._db.commit()
-
-    # -- photos in chapters ---------------------------------------------------------------
-
-    def assign_photos(self, chapter_id: str, photo_ids: Sequence[str]) -> Chapter:
-        """Append photos to the chapter in the given order, moving them out of any other one."""
-        chapter = self.get_chapter(chapter_id)
-        if len(set(photo_ids)) != len(photo_ids):
-            raise InvalidRequest("duplicate photo ids")
-        photos = {p.id: p for p in self._db.scalars(select(Photo).where(Photo.id.in_(photo_ids)))}
-        if len(photos) != len(photo_ids):
-            raise InvalidRequest("unknown photo id")
-
-        left_collections = self._collections_of(photos.values()) - {chapter.collection_id}
-        position = max((p.position_in_chapter for p in chapter.photos), default=-1) + 1
-        for photo_id in photo_ids:
-            photos[photo_id].chapter_id = chapter_id
-            photos[photo_id].position_in_chapter = position
-            position += 1
-        self._db.flush()
-        self._prune_covers(left_collections)
-        self._db.commit()
-        self._db.refresh(chapter)
-        return chapter
-
-    def remove_photo(self, chapter_id: str, photo_id: str) -> None:
-        chapter = self.get_chapter(chapter_id)
-        photo = self._db.get(Photo, photo_id)
-        if photo is None or photo.chapter_id != chapter_id:
-            raise NotFound("photo is not in this chapter")
-        photo.chapter_id = None
-        self._db.flush()
-        self._prune_covers({chapter.collection_id})
-        self._db.commit()
-
-    def reorder_photos(self, chapter_id: str, ordered_ids: Sequence[str]) -> None:
-        apply_order(self.get_chapter(chapter_id).photos, ordered_ids, "position_in_chapter")
-        self._db.commit()
-
-    # -- helpers --------------------------------------------------------------------------
-
-    def _check_slug(self, slug: str, ignore_id: str | None = None) -> None:
+    @staticmethod
+    def _check_slug(uow: AbstractUnitOfWork, slug: str, ignore_id: str | None = None) -> None:
         if not re.fullmatch(SLUG_PATTERN, slug):
             raise InvalidRequest("slug must be lowercase letters, digits and single hyphens")
-        taken = self._db.scalar(select(Collection.id).where(Collection.slug == slug))
-        if taken is not None and taken != ignore_id:
+        owner = uow.collections.slug_owner(slug)
+        if owner is not None and owner != ignore_id:
             raise Conflict("slug already in use")
 
-    def _photo_ids_in(self, collection_id: str) -> set[str]:
-        stmt = select(Photo.id).join(Chapter).where(Chapter.collection_id == collection_id)
-        return set(self._db.scalars(stmt))
-
-    def _collections_of(self, photos: Any) -> set[str]:
-        chapter_ids = {p.chapter_id for p in photos if p.chapter_id}
-        if not chapter_ids:
-            return set()
-        stmt = select(Chapter.collection_id).where(Chapter.id.in_(chapter_ids))
-        return set(self._db.scalars(stmt))
-
-    def _prune_covers(self, collection_ids: set[str]) -> None:
+    @staticmethod
+    def _prune_covers(uow: AbstractUnitOfWork, collection_ids: set[str]) -> None:
         """Drop cover photos that are no longer in their collection."""
         for collection_id in collection_ids:
-            collection = self._db.get(Collection, collection_id)
+            collection = uow.collections.get(collection_id)
             if collection is None or not collection.cover_photo_ids:
                 continue
-            inside = self._photo_ids_in(collection_id)
+            inside = uow.photos.ids_in_collection(collection_id)
             collection.cover_photo_ids = [p for p in collection.cover_photo_ids if p in inside]
+
+    @staticmethod
+    def _chapter_out(uow: AbstractUnitOfWork, chapter: Chapter) -> ChapterOut:
+        photo_ids = uow.photos.ids_by_chapter([chapter.id])[chapter.id]
+        return admin_chapter(chapter, photo_ids)
+
+    def _collection_out(self, uow: AbstractUnitOfWork, collection: Collection) -> CollectionOut:
+        return self._collections_out(uow, [collection])[0]
+
+    @staticmethod
+    def _collections_out(
+        uow: AbstractUnitOfWork, collections: Sequence[Collection]
+    ) -> list[CollectionOut]:
+        chapters = uow.collections.chapters_by_collection([c.id for c in collections])
+        chapter_ids = [ch.id for chs in chapters.values() for ch in chs]
+        photo_ids = uow.photos.ids_by_chapter(chapter_ids)
+        return [admin_collection(c, chapters[c.id], photo_ids) for c in collections]
 
 
 def _new_id() -> str:

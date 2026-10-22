@@ -7,7 +7,6 @@ from app.api.params import ResourceId
 from app.schemas.collections import ChapterOut, ChapterPatch
 from app.schemas.common import IdsBody, PhotoIdsBody
 from app.services.collections import CollectionService
-from app.services.mappers import admin_chapter
 
 router = APIRouter(prefix="/chapters", tags=["admin-chapters"])
 
@@ -21,7 +20,7 @@ def update(
 ) -> ChapterOut:
     chapter = collections.update_chapter(chapter_id, body.model_dump(exclude_unset=True))
     audit("chapter.update", chapter_id)
-    return admin_chapter(chapter)
+    return chapter
 
 
 @router.delete("/{chapter_id}", status_code=204)
@@ -44,7 +43,7 @@ def assign_photos(
 ) -> ChapterOut:
     chapter = collections.assign_photos(chapter_id, body.photo_ids)
     audit("chapter.assign_photos", chapter_id)
-    return admin_chapter(chapter)
+    return chapter
 
 
 @router.put("/{chapter_id}/photos/order", status_code=204)

@@ -59,5 +59,5 @@ def get_photo_service(request: Request, storage: Storage = Depends(get_storage))
     return PhotoService(request.app.state.uow_factory, storage, request.app.state.settings)
 
 
-def get_collection_service(session: Session = Depends(get_session)) -> CollectionService:
-    return CollectionService(session)
+def get_collection_service(request: Request) -> CollectionService:
+    return CollectionService(request.app.state.uow_factory)

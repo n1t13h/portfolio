@@ -1,5 +1,7 @@
 """Entity -> response-schema conversions."""
 
+from collections.abc import Mapping, Sequence
+
 from app.integrations.storage import Storage
 from app.models import Chapter, Collection, Photo
 from app.schemas.collections import ChapterOut, CollectionOut
@@ -32,18 +34,22 @@ def admin_photo(photo: Photo, storage: Storage) -> PhotoOut:
     )
 
 
-def admin_chapter(chapter: Chapter) -> ChapterOut:
+def admin_chapter(chapter: Chapter, photo_ids: Sequence[str]) -> ChapterOut:
     return ChapterOut(
         id=chapter.id,
         collection_id=chapter.collection_id,
         title=chapter.title,
         note=chapter.note,
         position=chapter.position,
-        photo_ids=[p.id for p in chapter.photos],
+        photo_ids=list(photo_ids),
     )
 
 
-def admin_collection(collection: Collection) -> CollectionOut:
+def admin_collection(
+    collection: Collection,
+    chapters: Sequence[Chapter],
+    photo_ids_by_chapter: Mapping[str, Sequence[str]],
+) -> CollectionOut:
     return CollectionOut(
         id=collection.id,
         slug=collection.slug,
@@ -54,7 +60,7 @@ def admin_collection(collection: Collection) -> CollectionOut:
         status=collection.status,
         sort_position=collection.sort_position,
         cover_photo_ids=list(collection.cover_photo_ids),
-        chapters=[admin_chapter(ch) for ch in collection.chapters],
+        chapters=[admin_chapter(ch, photo_ids_by_chapter[ch.id]) for ch in chapters],
     )
 
 

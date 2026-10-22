@@ -14,7 +14,6 @@ from app.schemas.collections import (
 )
 from app.schemas.common import IdsBody, PhotoIdsBody
 from app.services.collections import CollectionService
-from app.services.mappers import admin_chapter, admin_collection
 
 router = APIRouter(prefix="/collections", tags=["admin-collections"])
 
@@ -23,7 +22,7 @@ router = APIRouter(prefix="/collections", tags=["admin-collections"])
 def list_collections(
     collections: CollectionService = Depends(get_collection_service),
 ) -> list[CollectionOut]:
-    return [admin_collection(c) for c in collections.list_collections()]
+    return collections.list_collections()
 
 
 @router.post("", status_code=201)
@@ -34,7 +33,7 @@ def create(
 ) -> CollectionOut:
     collection = collections.create_collection(**body.model_dump())
     audit("collection.create", collection.id)
-    return admin_collection(collection)
+    return collection
 
 
 @router.put("/order", status_code=204)
@@ -52,7 +51,7 @@ def reorder(
 def get(
     collection_id: ResourceId, collections: CollectionService = Depends(get_collection_service)
 ) -> CollectionOut:
-    return admin_collection(collections.get_collection(collection_id))
+    return collections.get_collection(collection_id)
 
 
 @router.patch("/{collection_id}")
@@ -64,7 +63,7 @@ def update(
 ) -> CollectionOut:
     collection = collections.update_collection(collection_id, body.model_dump(exclude_unset=True))
     audit("collection.update", collection_id)
-    return admin_collection(collection)
+    return collection
 
 
 @router.delete("/{collection_id}", status_code=204)
@@ -86,7 +85,7 @@ def publish(
 ) -> CollectionOut:
     collection = collections.set_status(collection_id, Status.PUBLISHED)
     audit("collection.publish", collection_id)
-    return admin_collection(collection)
+    return collection
 
 
 @router.post("/{collection_id}/unpublish")
@@ -97,7 +96,7 @@ def unpublish(
 ) -> CollectionOut:
     collection = collections.set_status(collection_id, Status.DRAFT)
     audit("collection.unpublish", collection_id)
-    return admin_collection(collection)
+    return collection
 
 
 @router.put("/{collection_id}/covers")
@@ -109,7 +108,7 @@ def set_covers(
 ) -> CollectionOut:
     collection = collections.set_covers(collection_id, body.photo_ids)
     audit("collection.covers", collection_id)
-    return admin_collection(collection)
+    return collection
 
 
 @router.post("/{collection_id}/chapters", status_code=201)
@@ -121,7 +120,7 @@ def create_chapter(
 ) -> ChapterOut:
     chapter = collections.create_chapter(collection_id, body.title, body.note)
     audit("chapter.create", chapter.id)
-    return admin_chapter(chapter)
+    return chapter
 
 
 @router.put("/{collection_id}/chapters/order", status_code=204)

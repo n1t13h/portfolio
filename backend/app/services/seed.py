@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import Settings
 from app.integrations.storage import Storage
 from app.integrations.unsplash import API_BASE, RateLimited, UnsplashClient, UnsplashPhoto
-from app.models import Collection, Photo, Status
+from app.models import Photo, Status
 from app.schemas.photos import PhotoOut
 from app.schemas.seed import SeedData, SeedPhoto
 from app.services.collections import CollectionService
@@ -82,7 +82,7 @@ def seed_from_json(
         if report.remaining:
             return report  # collections and order are applied once every photo is in
         _apply_order(photos, [by_unsplash_id[i] for i in ordered if i in by_unsplash_id])
-        report.collections_created = _create_collections(db, data, by_unsplash_id)
+        report.collections_created = _create_collections(sessions, data, by_unsplash_id)
     return report
 
 
@@ -120,11 +120,15 @@ def _apply_order(photos: PhotoService, seeded_ids: list[str]) -> None:
     photos.reorder([*seeded_ids, *others])
 
 
-def _create_collections(db: Session, data: SeedData, by_unsplash_id: dict[str, str]) -> int:
-    collections = CollectionService(db)
+def _create_collections(
+    sessions: sessionmaker[Session], data: SeedData, by_unsplash_id: dict[str, str]
+) -> int:
+    collections = CollectionService(lambda: SqlAlchemyUnitOfWork(sessions))
     created = 0
     for source in data.collections:
-        if db.scalar(select(Collection.id).where(Collection.slug == source.slug)) is not None:
+        with SqlAlchemyUnitOfWork(sessions) as uow:
+            exists = uow.collections.slug_owner(source.slug) is not None
+        if exists:
             continue
         collection = collections.create_collection(
             source.slug, source.title, source.place, source.year, source.intro
