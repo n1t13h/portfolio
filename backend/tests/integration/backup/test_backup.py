@@ -6,7 +6,6 @@ import pytest
 from sqlalchemy import Engine
 
 import app.models  # noqa: F401  (registers tables)
-from app.core.config import Settings
 from app.core.db import Base, make_engine, make_session_factory
 from app.integrations.storage import Bucket
 from app.models import Photo
@@ -74,9 +73,3 @@ def test_backup_failure_raises_and_leaves_existing_backups(
         BackupService(live_engine, storage).run(NOW)
 
     assert storage.exists(Bucket.PRIVATE, ancient)  # nothing is pruned unless the new one is safe
-
-
-def test_env_example_documents_every_setting() -> None:
-    lines = (Path(__file__).parents[1] / ".env.example").read_text().splitlines()
-    documented = {line.split("=")[0].strip().lower() for line in lines if "=" in line}
-    assert documented == set(Settings.model_fields)

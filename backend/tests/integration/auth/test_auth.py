@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.models import Admin, AuditLog
 from app.services.auth import AuthService
-from tests.conftest import AdminCreds
 from tests.fakes import FakeClock
+from tests.support.auth import AdminCreds
 
 CSRF = {"X-CSRF": "1"}
 

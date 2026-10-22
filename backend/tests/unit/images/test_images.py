@@ -7,7 +7,7 @@ import pytest
 from PIL import ExifTags, Image
 
 from app.services.images import InvalidImage, process_jpeg
-from tests.images import make_jpeg, rich_exif
+from tests.support.images import make_jpeg, rich_exif
 
 
 def test_rejects_png_renamed_to_jpg() -> None:
@@ -139,7 +139,7 @@ def test_large_photo_does_not_need_a_gigabyte(tmp_path: Path) -> None:
         check=True,
         capture_output=True,
         text=True,
-        cwd=Path(__file__).parents[1],
+        cwd=Path(__file__).parents[3],
     )
     unit = 1 if sys.platform == "darwin" else 1024  # ru_maxrss is bytes on macOS, KB on Linux
     growth_mb = int(out.stdout) * unit / 1_000_000

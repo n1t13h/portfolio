@@ -6,8 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import AuditLog
-from tests.api_helpers import add_chapter, add_collection, add_photo
 from tests.fakes import FakeStorage
+from tests.support.api_helpers import add_chapter, add_collection, add_photo
 
 
 def get_collection(c: TestClient, url: str, collection_id: str) -> dict[str, Any]:

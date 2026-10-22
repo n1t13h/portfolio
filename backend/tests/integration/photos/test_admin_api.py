@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.integrations.storage import Bucket
 from app.models import AuditLog
-from tests.api_helpers import add_photo as _add_photo
-from tests.api_helpers import upload
 from tests.fakes import FakeStorage
-from tests.images import make_jpeg
+from tests.support.api_helpers import add_photo as _add_photo
+from tests.support.api_helpers import upload
+from tests.support.images import make_jpeg
 
 
 @pytest.fixture

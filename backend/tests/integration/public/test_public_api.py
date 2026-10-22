@@ -5,15 +5,15 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 
-from tests.api_helpers import (
+from tests.fakes import FakeStorage
+from tests.support.api_helpers import (
     add_chapter,
     add_collection,
     add_photo,
     add_published_photo,
     put_in_chapter,
 )
-from tests.fakes import FakeStorage
-from tests.images import make_jpeg, rich_exif
+from tests.support.images import make_jpeg, rich_exif
 
 
 @pytest.fixture

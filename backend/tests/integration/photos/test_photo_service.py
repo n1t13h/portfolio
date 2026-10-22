@@ -5,7 +5,7 @@ from app.core.config import Settings
 from app.services.images import InvalidImage
 from app.services.photos import PhotoService
 from tests.fakes import FakeStorage
-from tests.images import make_jpeg
+from tests.support.images import make_jpeg
 
 
 def test_ingest_rejects_files_over_the_upload_limit(

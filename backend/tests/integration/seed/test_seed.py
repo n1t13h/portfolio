@@ -97,7 +97,7 @@ def test_snapshot_exif_fills_gaps_and_file_exif_wins(
     unsplash: FakeUnsplash,
     db: Session,
 ) -> None:
-    from tests.images import make_jpeg, rich_exif
+    from tests.support.images import make_jpeg, rich_exif
 
     unsplash.files["a"] = make_jpeg((300, 200), exif=rich_exif())  # file says Sony ZV-E10, iso 640
     seed(seed_file, client, storage, settings, unsplash)
@@ -254,7 +254,7 @@ def test_photos_already_synced_from_unsplash_are_reused_not_duplicated(
     db: Session,
 ) -> None:
     from app.services.photos import PhotoService
-    from tests.images import make_jpeg
+    from tests.support.images import make_jpeg
 
     synced = PhotoService(db, storage, settings).ingest_jpeg(
         make_jpeg((60, 40)), title="Synced title", unsplash_id="a"
@@ -270,7 +270,7 @@ def test_photos_already_synced_from_unsplash_are_reused_not_duplicated(
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="needs node to read curation.ts")
 def test_export_script_produces_a_seed_the_backend_accepts(tmp_path: Path) -> None:
-    repo = Path(__file__).parents[2]
+    repo = Path(__file__).parents[4]
     out = tmp_path / "curation.json"
     subprocess.run(
         ["node", str(repo / "scripts" / "export-curation.mjs"), str(out)],

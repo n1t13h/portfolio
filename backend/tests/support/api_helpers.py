@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.integrations.storage import Bucket
 from tests.fakes import FakeStorage
-from tests.images import make_jpeg
+from tests.support.images import make_jpeg
 
 
 def upload(c: TestClient, storage: FakeStorage, base: str, data: bytes) -> str:
