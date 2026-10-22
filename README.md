@@ -1,69 +1,48 @@
-# Welcome to your Lovable project
+# Nitish Patel — portfolio
 
-## Project info
+Personal site at https://portfolio.ntshptl.in/ — Vite + React + TypeScript + Tailwind.
 
-**URL**: https://lovable.dev/projects/5bd0e887-546b-4a3d-8e24-5cf718ebff99
+Routes: `/` (landing), `/photos` (photography), `/photos/:slug` (collection essays). A photo opens in the lightbox via `?photo=<id>`. Placeholder copy lives in `src/content/site.ts`.
 
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/5bd0e887-546b-4a3d-8e24-5cf718ebff99) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Develop
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
 npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+npm run dev      # dev server
+npm test         # vitest
+npm run lint
 ```
 
-**Edit a file directly in GitHub**
+## Deploy
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Deploys are manual, to the `gh-pages` branch of the `nitishpatel.github.io` repo checked out next to this one.
 
-**Use GitHub Codespaces**
+```sh
+npm run build                      # emits dist/, plus dist/404.html (copy of index.html for SPA deep links)
+# replace the old build but keep CNAME; set -e aborts before any delete if cd or checkout fails
+set -e
+cd ../nitishpatel.github.io
+git checkout gh-pages
+find . -mindepth 1 -maxdepth 1 ! -name .git ! -name CNAME -exec rm -rf {} +
+cp -R ../portfolio/dist/* .
+git add -A
+git commit -m "deploy: portfolio"
+git push origin gh-pages
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Updating photos
 
-## What technologies are used for this project?
+```sh
+UNSPLASH_ACCESS_KEY=... npm run photos:snapshot
+```
 
-This project is built with .
+This rewrites `src/data/photos/snapshot.json` from the Unsplash API, merging by photo id so existing entries are never lost. Photos not yet in the snapshot are fetched first, then existing ones are refreshed; refreshed entries are replaced with fresh Unsplash data (the snapshot is generated, editorial data lives in `curation.ts`). The demo API key allows 50 requests per hour; if the limit is hit the script saves what it has, so re-run after an hour to finish. Collections, order and exclusions live in `src/data/photos/curation.ts`.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Intro links
 
-## How can I deploy this project?
+The first load can pick its intro from the URL (the param name lives in `src/components/intro/variants.ts`):
 
-Simply open [Lovable](https://lovable.dev/projects/5bd0e887-546b-4a3d-8e24-5cf718ebff99) and click on Share -> Publish.
+- `/` and `/?intro=developer` play the intro with developer tiles (Temporal, agentic AI, Web3, Python, microservices, …). Developer is the default; `/` plays it once per session.
+- `/?intro=photos` plays the photo intro and then lands on `/photos`.
 
-## I want to use a custom domain - is that possible?
-
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+An explicit variant plays even if the default intro already ran this session. Under reduced motion the animation is skipped, but `?intro=photos` still opens the photography page. Unknown values fall back to the default (developer) intro. The tiles are in `src/components/intro/devTiles.tsx`.

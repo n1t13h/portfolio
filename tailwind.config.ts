@@ -1,14 +1,16 @@
 
 import type { Config } from "tailwindcss";
+import animate from "tailwindcss-animate";
 
 export default {
-  darkMode: ["class"],
   content: [
     "./pages/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
   ],
+  // Light theme only: "class" mode with no .dark class ever applied keeps `dark:` variants inert.
+  darkMode: "class",
   prefix: "",
   theme: {
     container: {
@@ -54,12 +56,21 @@ export default {
           foreground: 'hsl(var(--popover-foreground))'
         },
         card: {
-          DEFAULT: 'hsl(var(--card))',
+          DEFAULT: '#f1f1f0',
           foreground: 'hsl(var(--card-foreground))'
         },
-        brand: {
-          orange: '#FF6D0A',
-        }
+        ink: '#0b0b0b',
+        mid: '#6b6b6b',
+        soft: '#9a9a9a',
+        line: '#e7e7e7',
+        ok: '#1fbf5f'
+      },
+      fontFamily: {
+        sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['"Geist Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace']
+      },
+      transitionTimingFunction: {
+        out: 'cubic-bezier(.16,1,.3,1)'
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -92,5 +103,5 @@ export default {
       }
     }
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [animate],
 } satisfies Config;
