@@ -46,6 +46,14 @@ class CollectionPatch(BaseModel):
     intro: str | None = None
 
 
+class ChapterDraft(BaseModel):
+    """A chapter to build together with its collection (see `CollectionService.create_complete`)."""
+
+    title: str = ""
+    note: str = ""
+    photo_ids: list[str] = []
+
+
 class ChapterCreate(BaseModel):
     title: str = ""
     note: str = ""

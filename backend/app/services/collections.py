@@ -7,7 +7,8 @@ from typing import Any
 
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.models import Chapter, Collection, Status
-from app.schemas.collections import SLUG_PATTERN, ChapterOut, CollectionOut
+from app.schemas.collections import SLUG_PATTERN, ChapterDraft, ChapterOut, CollectionOut
+from app.services.covers import prune_covers
 from app.services.ordering import apply_order
 from app.uow import AbstractUnitOfWork, UnitOfWorkFactory
 
@@ -55,6 +56,58 @@ class CollectionService:
             uow.commit()
             return CollectionOut.model_validate(collection)
 
+    def create_complete(
+        self,
+        slug: str,
+        title: str,
+        *,
+        chapters: Sequence[ChapterDraft],
+        cover_photo_ids: Sequence[str],
+        status: Status,
+        place: str = "",
+        year: str = "",
+        intro: str = "",
+    ) -> CollectionOut:
+        """Create a collection with its chapters, photos and covers in ONE transaction.
+
+        Either everything is saved or nothing is, so a collection is never visible half-built.
+        """
+        with self._uow() as uow:
+            self._check_slug(uow, slug)
+            collection = Collection(
+                id=_new_id(),
+                slug=slug,
+                title=title,
+                place=place,
+                year=year,
+                intro=intro,
+                status=status,
+                sort_position=uow.collections.next_sort_position(),
+                cover_photo_ids=[],
+            )
+            uow.collections.add(collection)
+            placed: set[str] = set()
+            left: set[str] = set()
+            for position, draft in enumerate(chapters):
+                if placed & set(draft.photo_ids):
+                    raise InvalidRequest("a photo can only be in one chapter")
+                chapter = Chapter(
+                    id=_new_id(),
+                    collection_id=collection.id,
+                    title=draft.title,
+                    note=draft.note,
+                    position=position,
+                )
+                uow.collections.add_chapter(chapter)
+                left |= self._place_photos(uow, chapter, draft.photo_ids)
+                placed.update(draft.photo_ids)
+            self._check_covers(cover_photo_ids, placed)
+            collection.cover_photo_ids = list(cover_photo_ids)
+            uow.flush()
+            prune_covers(uow, left - {collection.id})
+            uow.commit()
+            return CollectionOut.model_validate(self._collection(uow, collection.id))
+
     def update_collection(self, collection_id: str, changes: Mapping[str, Any]) -> CollectionOut:
         changes = _checked_changes(changes, COLLECTION_FIELDS)
         with self._uow() as uow:
@@ -89,10 +142,7 @@ class CollectionService:
     def set_covers(self, collection_id: str, photo_ids: Sequence[str]) -> CollectionOut:
         with self._uow() as uow:
             collection = self._collection(uow, collection_id)
-            if len(set(photo_ids)) != len(photo_ids):
-                raise InvalidRequest("duplicate photo ids")
-            if not set(photo_ids) <= uow.photos.ids_in_collection(collection_id):
-                raise InvalidRequest("covers must be photos in this collection")
+            self._check_covers(photo_ids, uow.photos.ids_in_collection(collection_id))
             collection.cover_photo_ids = list(photo_ids)
             uow.commit()
             return CollectionOut.model_validate(collection)
@@ -129,7 +179,7 @@ class CollectionService:
             uow.photos.unassign_from_chapters([chapter_id])
             uow.collections.delete_chapter(chapter)
             uow.flush()
-            self._prune_covers(uow, {collection_id})
+            prune_covers(uow, {collection_id})
             uow.commit()
 
     def reorder_chapters(self, collection_id: str, ordered_ids: Sequence[str]) -> None:
@@ -144,23 +194,9 @@ class CollectionService:
         """Append photos to the chapter in the given order, moving them out of any other one."""
         with self._uow() as uow:
             chapter = self._chapter(uow, chapter_id)
-            if len(set(photo_ids)) != len(photo_ids):
-                raise InvalidRequest("duplicate photo ids")
-            photos = {p.id: p for p in uow.photos.get_many(photo_ids)}
-            if len(photos) != len(photo_ids):
-                raise InvalidRequest("unknown photo id")
-
-            old_chapters = [p.chapter_id for p in photos.values() if p.chapter_id]
-            left = uow.collections.collection_ids_of_chapters(old_chapters) - {
-                chapter.collection_id
-            }
-            position = uow.photos.next_position_in_chapter(chapter_id)
-            for photo_id in photo_ids:
-                photos[photo_id].chapter_id = chapter_id
-                photos[photo_id].position_in_chapter = position
-                position += 1
+            left = self._place_photos(uow, chapter, photo_ids)
             uow.flush()
-            self._prune_covers(uow, left)
+            prune_covers(uow, left)
             uow.commit()
             # Moving photos changed other rows, so read the chapter again for its new photo list.
             return ChapterOut.model_validate(self._chapter(uow, chapter_id))
@@ -173,7 +209,7 @@ class CollectionService:
                 raise NotFound("photo is not in this chapter")
             photo.chapter_id = None
             uow.flush()
-            self._prune_covers(uow, {chapter.collection_id})
+            prune_covers(uow, {chapter.collection_id})
             uow.commit()
 
     def reorder_photos(self, chapter_id: str, ordered_ids: Sequence[str]) -> None:
@@ -199,22 +235,38 @@ class CollectionService:
         return chapter
 
     @staticmethod
+    def _check_covers(photo_ids: Sequence[str], inside: set[str]) -> None:
+        if len(set(photo_ids)) != len(photo_ids):
+            raise InvalidRequest("duplicate photo ids")
+        if not set(photo_ids) <= inside:
+            raise InvalidRequest("covers must be photos in this collection")
+
+    @staticmethod
+    def _place_photos(
+        uow: AbstractUnitOfWork, chapter: Chapter, photo_ids: Sequence[str]
+    ) -> set[str]:
+        """Append the photos to the chapter in order. Returns the *other* collections they left."""
+        if len(set(photo_ids)) != len(photo_ids):
+            raise InvalidRequest("duplicate photo ids")
+        photos = {p.id: p for p in uow.photos.get_many(photo_ids)}
+        if len(photos) != len(photo_ids):
+            raise InvalidRequest("unknown photo id")
+        old_chapters = [p.chapter_id for p in photos.values() if p.chapter_id]
+        left = uow.collections.collection_ids_of_chapters(old_chapters) - {chapter.collection_id}
+        position = uow.photos.next_position_in_chapter(chapter.id)
+        for photo_id in photo_ids:
+            photos[photo_id].chapter_id = chapter.id
+            photos[photo_id].position_in_chapter = position
+            position += 1
+        return left
+
+    @staticmethod
     def _check_slug(uow: AbstractUnitOfWork, slug: str, ignore_id: str | None = None) -> None:
         if not re.fullmatch(SLUG_PATTERN, slug):
             raise InvalidRequest("slug must be lowercase letters, digits and single hyphens")
         owner = uow.collections.slug_owner(slug)
         if owner is not None and owner != ignore_id:
             raise Conflict("slug already in use")
-
-    @staticmethod
-    def _prune_covers(uow: AbstractUnitOfWork, collection_ids: set[str]) -> None:
-        """Drop cover photos that are no longer in their collection."""
-        for collection_id in collection_ids:
-            collection = uow.collections.get(collection_id)
-            if collection is None or not collection.cover_photo_ids:
-                continue
-            inside = uow.photos.ids_in_collection(collection_id)
-            collection.cover_photo_ids = [p for p in collection.cover_photo_ids if p in inside]
 
 
 def _new_id() -> str:

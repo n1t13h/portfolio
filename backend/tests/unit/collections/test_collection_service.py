@@ -4,7 +4,7 @@ import pytest
 
 from app.core.errors import Conflict, InvalidRequest, NotFound
 from app.models import Status
-from app.schemas.collections import CollectionOut
+from app.schemas.collections import ChapterDraft, CollectionOut
 from app.services.collections import CollectionService
 from tests.fakes import FakeUnitOfWork
 from tests.support.builders import make_photo
@@ -350,3 +350,116 @@ def test_a_failed_write_changes_nothing(
     with pytest.raises(RuntimeError):
         service.update_collection(created.id, {"title": "changed"})
     assert service.get_collection(created.id).title == created.title
+
+
+# -- building a whole collection in one transaction ---------------------------------------
+
+
+def draft(title: str, *photo_ids: str, note: str = "") -> ChapterDraft:
+    return ChapterDraft(title=title, note=note, photo_ids=list(photo_ids))
+
+
+def test_a_complete_collection_is_created_published_with_chapters_photos_and_covers(
+    service: CollectionService, fake_uow: FakeUnitOfWork
+) -> None:
+    add_photos(fake_uow, "p1", "p2", "p3")
+
+    created = service.create_complete(
+        "goa",
+        "Goa",
+        chapters=[draft("Arrival", "p2", "p1", note="Rain"), draft("Beaches", "p3")],
+        cover_photo_ids=["p3", "p1"],
+        status=Status.PUBLISHED,
+        place="India",
+        year="2024",
+        intro="Monsoon",
+    )
+
+    assert (created.slug, created.status, created.place, created.year) == (
+        "goa",
+        Status.PUBLISHED,
+        "India",
+        "2024",
+    )
+    assert [(c.title, c.note, c.photo_ids) for c in created.chapters] == [
+        ("Arrival", "Rain", ["p2", "p1"]),
+        ("Beaches", "", ["p3"]),
+    ]
+    assert created.cover_photo_ids == ["p3", "p1"]
+    assert fake_uow.commits >= 1
+
+
+def test_the_whole_collection_is_one_commit(
+    service: CollectionService, fake_uow: FakeUnitOfWork
+) -> None:
+    add_photos(fake_uow, "p1", "p2")
+    before = fake_uow.commits
+    service.create_complete(
+        "goa",
+        "Goa",
+        chapters=[draft("A", "p1"), draft("B", "p2")],
+        cover_photo_ids=["p1"],
+        status=Status.PUBLISHED,
+    )
+    assert fake_uow.commits - before == 1
+
+
+def test_a_collection_is_never_left_half_built_when_something_is_wrong(
+    service: CollectionService, fake_uow: FakeUnitOfWork
+) -> None:
+    add_photos(fake_uow, "p1")
+    bad_calls = [
+        dict(chapters=[draft("A", "p1", "ghost")], cover_photo_ids=[]),  # unknown photo
+        dict(chapters=[draft("A", "p1")], cover_photo_ids=["elsewhere"]),  # cover not in it
+        dict(chapters=[draft("A", "p1"), draft("B", "p1")], cover_photo_ids=[]),  # same photo twice
+    ]
+    for call in bad_calls:
+        with pytest.raises(InvalidRequest):
+            service.create_complete("goa", "Goa", status=Status.PUBLISHED, **call)  # type: ignore[arg-type]
+        assert fake_uow.store.collections == {} and fake_uow.store.chapters == {}
+        assert photo_chapter(fake_uow, "p1") is None
+
+
+def test_a_failed_save_leaves_nothing_behind(
+    service: CollectionService, fake_uow: FakeUnitOfWork
+) -> None:
+    add_photos(fake_uow, "p1")
+    fake_uow.fail_next_commit(RuntimeError("database is down"))
+    with pytest.raises(RuntimeError):
+        service.create_complete(
+            "goa",
+            "Goa",
+            chapters=[draft("A", "p1")],
+            cover_photo_ids=["p1"],
+            status=Status.PUBLISHED,
+        )
+    assert fake_uow.store.collections == {} and fake_uow.store.chapters == {}
+    assert photo_chapter(fake_uow, "p1") is None
+
+
+def test_a_complete_collection_still_needs_a_free_valid_slug(service: CollectionService) -> None:
+    collection(service, "goa")
+    with pytest.raises(Conflict):
+        service.create_complete(
+            "goa", "Again", chapters=[], cover_photo_ids=[], status=Status.DRAFT
+        )
+    with pytest.raises(InvalidRequest):
+        service.create_complete(
+            "Bad Slug", "x", chapters=[], cover_photo_ids=[], status=Status.DRAFT
+        )
+
+
+def test_building_a_collection_moves_photos_out_of_their_old_chapters_and_covers(
+    service: CollectionService, fake_uow: FakeUnitOfWork
+) -> None:
+    add_photos(fake_uow, "p1")
+    old = collection(service, "old")
+    service.assign_photos(service.create_chapter(old.id).id, ["p1"])
+    service.set_covers(old.id, ["p1"])
+
+    service.create_complete(
+        "new", "New", chapters=[draft("A", "p1")], cover_photo_ids=["p1"], status=Status.DRAFT
+    )
+
+    assert service.get_collection(old.id).cover_photo_ids == []
+    assert [c.photo_ids for c in service.get_collection(old.id).chapters] == [[]]

@@ -15,6 +15,7 @@ from app.core.config import Settings
 from app.integrations.storage import Storage
 from app.integrations.unsplash import API_BASE, RateLimited, UnsplashClient, UnsplashPhoto
 from app.models import Status
+from app.schemas.collections import ChapterDraft
 from app.schemas.photos import PhotoOut
 from app.schemas.seed import SeedData, SeedPhoto
 from app.services.collections import CollectionService
@@ -126,20 +127,26 @@ def _create_collections(
             exists = uow.collections.slug_owner(source.slug) is not None
         if exists:
             continue
-        collection = collections.create_collection(
-            source.slug, source.title, source.place, source.year, source.intro
-        )
-        collections.set_status(collection.id, Status.PUBLISHED)
-        placed: set[str] = set()
-        for chapter_source in source.chapters:
-            chapter = collections.create_chapter(
-                collection.id, chapter_source.title, chapter_source.note
+        chapters = [
+            ChapterDraft(
+                title=chapter.title,
+                note=chapter.note,
+                photo_ids=[by_unsplash_id[i] for i in chapter.photo_ids if i in by_unsplash_id],
             )
-            ids = [by_unsplash_id[i] for i in chapter_source.photo_ids if i in by_unsplash_id]
-            if ids:
-                collections.assign_photos(chapter.id, ids)
-                placed.update(ids)
+            for chapter in source.chapters
+        ]
+        placed = {photo_id for chapter in chapters for photo_id in chapter.photo_ids}
         covers = [by_unsplash_id[i] for i in source.cover_ids if by_unsplash_id.get(i) in placed]
-        collections.set_covers(collection.id, covers)
+        # One transaction: a collection is never published before its chapters and covers exist.
+        collections.create_complete(
+            source.slug,
+            source.title,
+            chapters=chapters,
+            cover_photo_ids=covers,
+            status=Status.PUBLISHED,
+            place=source.place,
+            year=source.year,
+            intro=source.intro,
+        )
         created += 1
     return created
