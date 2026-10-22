@@ -109,7 +109,7 @@ def seed(path: Path) -> int:
     settings = get_settings()
     report = seed_from_json(
         path,
-        make_session_factory(make_engine(settings.database_url)),
+        _uow_factory(settings),
         R2Storage(settings),
         settings,
         HttpxUnsplashClient(settings),

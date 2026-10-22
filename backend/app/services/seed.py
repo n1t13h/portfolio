@@ -10,18 +10,16 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from sqlalchemy import select
-from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.integrations.storage import Storage
 from app.integrations.unsplash import API_BASE, RateLimited, UnsplashClient, UnsplashPhoto
-from app.models import Photo, Status
+from app.models import Status
 from app.schemas.photos import PhotoOut
 from app.schemas.seed import SeedData, SeedPhoto
 from app.services.collections import CollectionService
 from app.services.photos import PhotoService
-from app.uow import SqlAlchemyUnitOfWork
+from app.uow import UnitOfWorkFactory
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +35,7 @@ class SeedReport:
 
 def seed_from_json(
     path: Path,
-    sessions: sessionmaker[Session],
+    uow_factory: UnitOfWorkFactory,
     storage: Storage,
     settings: Settings,
     unsplash: UnsplashClient,
@@ -48,41 +46,39 @@ def seed_from_json(
     ordered = [i for i in in_order if i in snapshot]
     report = SeedReport()
 
-    with sessions() as db:
-        photos = PhotoService(lambda: SqlAlchemyUnitOfWork(sessions), storage, settings)
-        known = db.execute(
-            select(Photo.unsplash_id, Photo.id).where(Photo.unsplash_id.is_not(None))
-        )
-        by_unsplash_id: dict[str, str] = {u: pid for u, pid in known if u is not None}
-        for index, unsplash_id in enumerate(ordered):
-            if unsplash_id in by_unsplash_id:
-                report.already_present += 1
-                continue
-            try:
-                photo = _import_one(
-                    photos, unsplash, snapshot[unsplash_id], unsplash_id in data.excluded
-                )
-            except RateLimited:
-                report.remaining += [i for i in ordered[index:] if i not in by_unsplash_id]
-                return report
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code != 404:
-                    log.exception("could not import %s", unsplash_id)
-                    report.remaining.append(unsplash_id)
-                else:
-                    report.missing_from_unsplash.append(unsplash_id)
-                continue
-            except Exception:  # a network blip should not abandon the other photos
+    photos = PhotoService(uow_factory, storage, settings)
+    with uow_factory() as uow:
+        by_unsplash_id = uow.photos.unsplash_id_map()
+
+    for index, unsplash_id in enumerate(ordered):
+        if unsplash_id in by_unsplash_id:
+            report.already_present += 1
+            continue
+        try:
+            photo = _import_one(
+                photos, unsplash, snapshot[unsplash_id], unsplash_id in data.excluded
+            )
+        except RateLimited:
+            report.remaining += [i for i in ordered[index:] if i not in by_unsplash_id]
+            return report
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
                 log.exception("could not import %s", unsplash_id)
                 report.remaining.append(unsplash_id)
-                continue
-            by_unsplash_id[unsplash_id] = photo.id
-            report.imported += 1
+            else:
+                report.missing_from_unsplash.append(unsplash_id)
+            continue
+        except Exception:  # a network blip should not abandon the other photos
+            log.exception("could not import %s", unsplash_id)
+            report.remaining.append(unsplash_id)
+            continue
+        by_unsplash_id[unsplash_id] = photo.id
+        report.imported += 1
 
-        if report.remaining:
-            return report  # collections and order are applied once every photo is in
-        _apply_order(photos, [by_unsplash_id[i] for i in ordered if i in by_unsplash_id])
-        report.collections_created = _create_collections(sessions, data, by_unsplash_id)
+    if report.remaining:
+        return report  # collections and order are applied once every photo is in
+    _apply_order(photos, [by_unsplash_id[i] for i in ordered if i in by_unsplash_id])
+    report.collections_created = _create_collections(uow_factory, data, by_unsplash_id)
     return report
 
 
@@ -121,12 +117,12 @@ def _apply_order(photos: PhotoService, seeded_ids: list[str]) -> None:
 
 
 def _create_collections(
-    sessions: sessionmaker[Session], data: SeedData, by_unsplash_id: dict[str, str]
+    uow_factory: UnitOfWorkFactory, data: SeedData, by_unsplash_id: dict[str, str]
 ) -> int:
-    collections = CollectionService(lambda: SqlAlchemyUnitOfWork(sessions))
+    collections = CollectionService(uow_factory)
     created = 0
     for source in data.collections:
-        with SqlAlchemyUnitOfWork(sessions) as uow:
+        with uow_factory() as uow:
             exists = uow.collections.slug_owner(source.slug) is not None
         if exists:
             continue
