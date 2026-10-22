@@ -12,21 +12,49 @@ Design: [`../docs/superpowers/specs/2026-10-22-backend-design.md`](../docs/super
 ```
 app/
   main.py            app factory: wires settings, storage, clock, notifier, Unsplash client
-  core/              config, database, clock, security helpers, domain errors
-  models/            one SQLAlchemy table per file
-  integrations/      the outside world behind small interfaces: storage (R2), unsplash, notifier (Telegram)
-  services/          all business logic; no HTTP in here
+  schemas/           every Pydantic request/response model, one module per entity
+  models/            SQLAlchemy entities, one table per file
+  repositories/      the only code that queries the database (abstract interface + SQL implementation)
+  uow.py             AbstractUnitOfWork / SqlAlchemyUnitOfWork: one transaction with all repositories
+  services/          use cases: business rules, built on the unit of work; return schemas, no HTTP
   api/public/        read-only routes + contact form (no login)
-  api/admin/         everything under /a/<ADMIN_PATH_PREFIX>, behind login + 2FA
+  api/admin/         everything under /a/<ADMIN_PATH_PREFIX>, behind login + 2FA; thin routers
+  integrations/      the outside world behind small interfaces: storage (R2), unsplash, notifier (Telegram)
+  core/              config, engine/session factory/Base, clock, security helpers, errors, limits
   cli.py             create-admin, reset-admin, sync, seed, backup, notify-pending
 alembic/versions/    database migrations
 deploy/              Caddy + systemd files
-tests/               fakes.py has in-memory stand-ins for R2, Unsplash, Telegram and the clock
+tests/               unit/<entity>/ and integration/<entity>/, plus fakes/ and support/
 ```
 
-Rules that keep it maintainable: routers stay thin and call services; services reach R2, Unsplash
-and Telegram only through the interfaces in `integrations/` (so tests never touch the network);
-all configuration comes from `app/core/config.py`; files stay small and single-purpose.
+**The layering** (each layer only knows the one below it):
+
+```
+router -> service -> unit of work -> repositories -> SQLAlchemy / SQLite
+                  -> integrations (R2, Unsplash, Telegram)
+```
+
+- A **service method is one transaction**: `with self._uow() as uow: ...; uow.commit()`. Leaving the
+  block without committing rolls everything back, so a service that fails halfway changes nothing.
+  Services receive a unit-of-work *factory* because some (sync, seed, contact) run several short
+  transactions in a row.
+- Services never see a `Session` and never walk ORM relationships; they ask a repository
+  (`uow.collections.list_chapters(id)`). Entities do not leave a service: it returns schemas built
+  inside the transaction, so nothing depends on a live session.
+- Repositories hold queries only. Business rules (slug format, lockouts, who may see what) live in
+  services; the public-visibility rule lives in one place, `repositories/catalog.py`.
+- Routers parse the request, call one service method and return its result. Pydantic models live in
+  `app/schemas/`, nowhere else.
+- All configuration comes from `app/core/config.py`; files stay small and single-purpose.
+
+**Adding a feature**: add or extend a repository interface (and its SQL implementation), put the rule
+in a service, unit test the service against `FakeUnitOfWork`, add a router, then one integration test
+through HTTP. The fake is held to the same contract as the SQL repositories by tests that run against
+both (`tests/integration/<entity>/test_*_repository.py`), so it cannot quietly drift.
+
+**Tests**: `tests/unit/<entity>/` need no database or network (fake unit of work, fake storage,
+fake Unsplash, fake clock); `tests/integration/<entity>/` use SQLite and the real app over HTTP;
+`tests/fakes/` and `tests/support/` hold the shared fakes and builders.
 
 ## Run it locally with Docker
 
@@ -57,7 +85,7 @@ uv run uvicorn app.main:create_app --factory --reload   # DEBUG=true also serves
 Quality gates (all must pass before a change is done):
 
 ```bash
-uv run pytest
+uv run pytest                    # everything; add `tests/unit` for the fast, database-free suite
 uv run ruff check . && uv run ruff format --check .
 uv run mypy app tests
 ```
