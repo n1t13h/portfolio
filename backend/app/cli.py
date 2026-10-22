@@ -11,6 +11,12 @@ from app.core.db import make_engine, make_session_factory
 from app.integrations.notifier import Notifier, build_notifier
 from app.services.auth import AdminExists, AuthService
 from app.services.contact import ContactService
+from app.uow import SqlAlchemyUnitOfWork
+
+
+def _auth_service(settings: Settings) -> AuthService:
+    sessions = make_session_factory(make_engine(settings.database_url))
+    return AuthService(lambda: SqlAlchemyUnitOfWork(sessions), settings, SystemClock())
 
 
 def create_admin(username: str) -> int:
@@ -19,12 +25,11 @@ def create_admin(username: str) -> int:
         print("Passwords do not match.", file=sys.stderr)
         return 1
     settings = get_settings()
-    with make_session_factory(make_engine(settings.database_url))() as session:
-        try:
-            created = AuthService(session, settings, SystemClock()).create_admin(username, password)
-        except AdminExists:
-            print("An admin already exists.", file=sys.stderr)
-            return 1
+    try:
+        created = _auth_service(settings).create_admin(username, password)
+    except AdminExists:
+        print("An admin already exists.", file=sys.stderr)
+        return 1
     print(f"\nAdd this to your authenticator app:\n{created.totp_uri}\n")
     print("Recovery codes (each works once; store them somewhere safe):")
     print("\n".join(f"  {c}" for c in created.recovery_codes))
@@ -36,9 +41,7 @@ def reset_admin(username: str) -> int:
     if password != getpass.getpass("Repeat new password: "):
         print("Passwords do not match.", file=sys.stderr)
         return 1
-    settings = get_settings()
-    with make_session_factory(make_engine(settings.database_url))() as session:
-        created = AuthService(session, settings, SystemClock()).reset_admin(username, password)
+    created = _auth_service(get_settings()).reset_admin(username, password)
     print(
         f"\nAdd this to your authenticator app (the old one no longer works):\n{created.totp_uri}\n"
     )

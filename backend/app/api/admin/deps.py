@@ -1,14 +1,11 @@
 """Dependencies shared by every admin route: CSRF guard, auth service, current admin."""
 
 from fastapi import Depends, HTTPException, Request
-from sqlalchemy.orm import Session
 
-from app.core.clock import Clock
-from app.core.db import get_session
 from app.core.deps import get_storage
 from app.integrations.storage import Storage
-from app.models import Admin
-from app.services import audit
+from app.schemas.auth import AdminOut
+from app.services.audit import AuditService
 from app.services.auth import AuthService
 from app.services.collections import CollectionService
 from app.services.photos import PhotoService
@@ -24,15 +21,16 @@ def csrf_guard(request: Request) -> None:
         raise HTTPException(status_code=403, detail="missing csrf header")
 
 
-def get_auth_service(request: Request, session: Session = Depends(get_session)) -> AuthService:
-    return AuthService(session, request.app.state.settings, request.app.state.clock)
+def get_auth_service(request: Request) -> AuthService:
+    state = request.app.state
+    return AuthService(state.uow_factory, state.settings, state.clock)
 
 
 def client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
-def require_admin(request: Request, auth: AuthService = Depends(get_auth_service)) -> Admin:
+def require_admin(request: Request, auth: AuthService = Depends(get_auth_service)) -> AdminOut:
     token = request.cookies.get(SESSION_COOKIE)
     admin = auth.verify_session(token) if token else None
     if admin is None:
@@ -41,18 +39,18 @@ def require_admin(request: Request, auth: AuthService = Depends(get_auth_service
 
 
 class Auditor:
-    """Records an audit entry for the current request's admin action and commits it."""
+    """Records an audit entry for the current request's admin action."""
 
-    def __init__(self, session: Session, clock: Clock, ip: str) -> None:
-        self._session, self._clock, self._ip = session, clock, ip
+    def __init__(self, audit: AuditService, ip: str) -> None:
+        self._audit, self._ip = audit, ip
 
     def __call__(self, action: str, target: str = "") -> None:
-        audit.record(self._session, self._clock, action, target, self._ip)
-        self._session.commit()
+        self._audit.record(action, target, self._ip)
 
 
-def get_auditor(request: Request, session: Session = Depends(get_session)) -> Auditor:
-    return Auditor(session, request.app.state.clock, client_ip(request))
+def get_auditor(request: Request) -> Auditor:
+    state = request.app.state
+    return Auditor(AuditService(state.uow_factory, state.clock), client_ip(request))
 
 
 def get_photo_service(request: Request, storage: Storage = Depends(get_storage)) -> PhotoService:

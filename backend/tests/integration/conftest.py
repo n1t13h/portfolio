@@ -39,8 +39,9 @@ def db(client: TestClient) -> Iterator[Session]:
 
 
 @pytest.fixture
-def admin(db: Session, settings: Settings, clock: FakeClock) -> AdminCreds:
-    created = AuthService(db, settings, clock).create_admin("nitish", ADMIN_PASSWORD)
+def admin(client: TestClient, settings: Settings, clock: FakeClock) -> AdminCreds:
+    service = AuthService(client.app.state.uow_factory, settings, clock)  # type: ignore[attr-defined]
+    created = service.create_admin("nitish", ADMIN_PASSWORD)
     return AdminCreds("nitish", ADMIN_PASSWORD, created.totp_secret, created.recovery_codes)
 
 

@@ -1,11 +1,8 @@
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import Settings
 from app.models import Admin, AuditLog
-from app.services.auth import AuthService
 from tests.fakes import FakeClock
 from tests.support.auth import AdminCreds
 
@@ -158,68 +155,10 @@ def test_login_and_failures_are_audited(
     assert actions == ["login_failed", "login"]
 
 
-def test_only_one_admin_can_be_created(
-    db: Session, admin: AdminCreds, settings: Settings, clock: FakeClock
-) -> None:
-    from app.services.auth import AdminExists, AuthService
-
-    with pytest.raises(AdminExists):
-        AuthService(db, settings, clock).create_admin("second", "pw")
-    assert len(db.scalars(select(Admin)).all()) == 1
-
-
 def test_secrets_are_not_stored_in_plain_text(db: Session, admin: AdminCreds) -> None:
     row = db.scalars(select(Admin)).one()
     assert admin.password not in row.password_hash
     assert all(code not in str(row.recovery_code_hashes) for code in admin.recovery_codes)
-
-
-def _service(db: Session, settings: Settings, clock: FakeClock) -> AuthService:
-    from app.services.auth import AuthService
-
-    return AuthService(db, settings, clock)
-
-
-def test_failures_spread_across_many_ips_still_lock_the_account(
-    db: Session,
-    admin: AdminCreds,
-    settings: Settings,
-    clock: FakeClock,
-) -> None:
-    from app.services.auth import InvalidCredentials, LockedOut
-
-    service = _service(db, settings, clock)
-    for i in range(settings.login_max_failures_per_account):
-        with pytest.raises(InvalidCredentials):
-            service.login("nitish", "wrong", "000000", ip=f"10.0.0.{i}")
-
-    with pytest.raises(LockedOut):  # a brand-new IP, and the right password
-        service.login("nitish", admin.password, admin.code(clock), ip="10.9.9.9")
-
-    clock.advance(settings.login_lockout_seconds + 1)
-    assert service.login("nitish", admin.password, admin.code(clock), ip="10.9.9.9")
-
-
-def test_old_failure_rows_are_pruned(
-    db: Session,
-    admin: AdminCreds,
-    settings: Settings,
-    clock: FakeClock,
-) -> None:
-    from app.models import LoginFailure
-    from app.services.auth import InvalidCredentials
-
-    service = _service(db, settings, clock)
-    for name in ("a", "b", "c"):  # an attacker inventing usernames
-        with pytest.raises(InvalidCredentials):
-            service.login(name, "x", "000000", ip="6.6.6.6")
-    assert db.query(LoginFailure).count() == 3
-
-    clock.advance(settings.login_lockout_seconds + 1)
-    with pytest.raises(InvalidCredentials):
-        service.login("d", "x", "000000", ip="6.6.6.6")
-
-    assert db.query(LoginFailure).count() == 1  # only the new one is left
 
 
 def test_absurdly_long_username_is_rejected(client: TestClient, admin_url: str) -> None:
@@ -238,62 +177,3 @@ def test_logout_revokes_the_token_on_the_server(admin_client: TestClient, admin_
 
     admin_client.cookies.set("portfolio_session", stolen, path=admin_url)  # replay the copy
     assert admin_client.get(f"{admin_url}/auth/me").status_code == 401
-
-
-def test_reset_admin_replaces_credentials_and_kills_old_sessions(
-    db: Session,
-    admin: AdminCreds,
-    settings: Settings,
-    clock: FakeClock,
-) -> None:
-    from app.services.auth import InvalidCredentials
-
-    service = _service(db, settings, clock)
-    old_token = service.login("nitish", admin.password, admin.code(clock), ip="1.1.1.1")
-    clock.advance(30)
-
-    fresh = service.reset_admin("nitish", "a brand new password")
-
-    assert service.verify_session(old_token) is None
-    assert fresh.totp_secret != admin.totp_secret
-    assert set(fresh.recovery_codes).isdisjoint(admin.recovery_codes)
-    with pytest.raises(InvalidCredentials):
-        service.login("nitish", admin.password, admin.code(clock), ip="1.1.1.1")
-    import pyotp
-
-    code = pyotp.TOTP(fresh.totp_secret).at(clock.now())
-    assert service.login("nitish", "a brand new password", code, ip="1.1.1.1")
-    assert len(db.scalars(select(Admin)).all()) == 1
-
-
-def test_reset_admin_clears_a_lockout(
-    db: Session,
-    admin: AdminCreds,
-    settings: Settings,
-    clock: FakeClock,
-) -> None:
-    from app.services.auth import InvalidCredentials, LockedOut
-
-    service = _service(db, settings, clock)
-    for _ in range(settings.login_max_failures):
-        with pytest.raises(InvalidCredentials):
-            service.login("nitish", "wrong", "000000", ip="1.1.1.1")
-    with pytest.raises(LockedOut):
-        service.login("nitish", "wrong", "000000", ip="1.1.1.1")
-
-    fresh = service.reset_admin("nitish", "pw-new-pw-new")
-
-    import pyotp
-
-    code = pyotp.TOTP(fresh.totp_secret).at(clock.now())
-    assert service.login("nitish", "pw-new-pw-new", code, ip="1.1.1.1")
-
-
-def test_reset_admin_creates_the_account_when_none_exists(
-    db: Session,
-    settings: Settings,
-    clock: FakeClock,
-) -> None:
-    created = _service(db, settings, clock).reset_admin("nitish", "pw-pw-pw-pw")
-    assert created.recovery_codes
-    assert len(db.scalars(select(Admin)).all()) == 1

@@ -3,8 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from app.api.admin.deps import SESSION_COOKIE, client_ip, get_auth_service, require_admin
-from app.models import Admin
-from app.schemas.auth import LoginBody
+from app.schemas.auth import AdminOut, LoginBody
 from app.services.auth import AuthService, InvalidCredentials, LockedOut
 
 router = APIRouter(prefix="/auth", tags=["admin-auth"])
@@ -48,5 +47,5 @@ def logout(request: Request, auth: AuthService = Depends(get_auth_service)) -> R
 
 
 @router.get("/me")
-def me(admin: Admin = Depends(require_admin)) -> dict[str, str]:
-    return {"username": admin.username}
+def me(admin: AdminOut = Depends(require_admin)) -> AdminOut:
+    return admin
