@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Protocol
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 from app.core.config import Settings
 
@@ -35,6 +36,13 @@ class Storage(Protocol):
     def size(self, bucket: Bucket, key: str) -> int: ...
     def list_keys(self, bucket: Bucket, prefix: str) -> list[str]: ...
     def public_url(self, key: str) -> str: ...
+
+
+_NOT_FOUND = {"404", "NoSuchKey", "NotFound"}
+
+
+def _is_not_found(error: ClientError) -> bool:
+    return error.response.get("Error", {}).get("Code") in _NOT_FOUND
 
 
 class R2Storage:
@@ -108,8 +116,10 @@ class R2Storage:
     def exists(self, bucket: Bucket, key: str) -> bool:
         try:
             self._client.head_object(Bucket=self._name(bucket), Key=key)
-        except self._client.exceptions.ClientError:
-            return False
+        except ClientError as exc:
+            if _is_not_found(exc):
+                return False
+            raise  # bad credentials, throttling, outages: not the same as "no such file"
         return True
 
     def size(self, bucket: Bucket, key: str) -> int:
