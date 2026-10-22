@@ -1,9 +1,10 @@
-"""Database engine, session factory and the declarative base."""
+"""Database plumbing only: engine, session factory and the declarative base.
 
-from collections.abc import Iterator
+Transactions are managed by the unit of work in `app.uow`, never by passing sessions around.
+"""
+
 from typing import Any
 
-from fastapi import Request
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -31,8 +32,3 @@ def make_engine(url: str) -> Engine:
 
 def make_session_factory(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(engine, expire_on_commit=False)
-
-
-def get_session(request: Request) -> Iterator[Session]:
-    with request.app.state.session_factory() as session:
-        yield session

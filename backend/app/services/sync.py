@@ -12,10 +12,9 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.exc import IntegrityError
-
 from app.core.clock import Clock
 from app.core.config import Settings
+from app.core.errors import Conflict
 from app.integrations.storage import Storage
 from app.integrations.unsplash import RateLimited, UnsplashClient
 from app.services.photos import PhotoService
@@ -85,7 +84,7 @@ class SyncService:
             try:
                 uow.sync_state.get_or_create()
                 uow.commit()
-            except IntegrityError:  # another process created the row first
+            except Conflict:  # another process created the row first
                 uow.rollback()
             if not uow.sync_state.try_acquire(now, now - STALE_LOCK):
                 raise SyncAlreadyRunning

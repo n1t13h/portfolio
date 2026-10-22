@@ -4,14 +4,21 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 from sqlalchemy import CursorResult, or_, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.errors import Conflict
 from app.models import SyncState
 
 
 class AbstractSyncStateRepository(ABC):
     @abstractmethod
-    def get_or_create(self) -> SyncState: ...
+    def get_or_create(self) -> SyncState:
+        """The single state row, creating it if needed.
+
+        Raises `Conflict` if another process created it at the same moment; the caller should
+        roll back and ask again.
+        """
 
     @abstractmethod
     def try_acquire(self, now: datetime, stale_before: datetime) -> bool:
@@ -30,7 +37,10 @@ class SqlAlchemySyncStateRepository(AbstractSyncStateRepository):
         if row is None:
             row = SyncState(id=1, pending={}, skipped={})
             self._s.add(row)
-            self._s.flush()
+            try:
+                self._s.flush()
+            except IntegrityError as exc:  # a concurrent process inserted id=1 first
+                raise Conflict("the sync state was created concurrently") from exc
         return row
 
     def try_acquire(self, now: datetime, stale_before: datetime) -> bool:

@@ -315,3 +315,27 @@ def test_a_stale_lock_no_longer_counts_as_running(service: SyncService, clock: F
     assert service.status().running is True
     clock.advance(timedelta(hours=2).total_seconds())
     assert service.status().running is False
+
+
+def test_two_processes_racing_to_create_the_state_row_do_not_break_taking_the_lock(
+    service: SyncService, fake_uow: FakeUnitOfWork
+) -> None:
+    """The other process creates (and commits) the row between our look and our insert."""
+    from app.core.errors import Conflict
+
+    real = fake_uow.sync_state.get_or_create
+    calls = {"n": 0}
+
+    def racing() -> SyncState:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            real()
+            fake_uow.commit()  # the other process's commit survives our rollback
+            raise Conflict("the sync state was created concurrently")
+        return real()
+
+    fake_uow.sync_state.get_or_create = racing  # type: ignore[method-assign]
+
+    service.acquire()  # does not raise
+
+    assert state(fake_uow).running is True

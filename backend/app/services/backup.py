@@ -1,4 +1,8 @@
-"""Nightly copy of the SQLite database into the private bucket, keeping 30 days."""
+"""Nightly copy of the SQLite database into the private bucket, keeping 30 days.
+
+This works on the database *file* (SQLite's online backup API), not on entities, so it takes
+the engine directly rather than going through the repositories.
+"""
 
 import re
 import sqlite3
