@@ -6,38 +6,32 @@ export type Exif = {
   iso?: number;
 };
 
+/** A published photo, as written to catalog.json by scripts/fetch-catalog.mjs. */
 export type Photo = {
   id: string;
-  pid: string;
-  aspectRatio: number;
   title: string;
   place?: string;
+  aspectRatio: number;
   exif?: Exif;
-  unsplashUrl: string;
+  /** Long edge in px ("800", "1600", "2400") -> image URL on cdn.ntshptl.in. */
+  variants: Record<string, string>;
+  unsplashId?: string;
+  unsplashUrl?: string;
+  /** API path that redirects to the file; present only when downloads are allowed. */
+  downloadUrl?: string;
 };
 
-export type Chapter = { title: string; note: string; photoIds: string[] };
+export type ResolvedChapter = { title: string; note: string; photos: Photo[] };
 
-export type Collection = {
+export type ResolvedCollection = {
   slug: string;
   title: string;
   place: string;
   year: string;
   intro: string;
-  coverIds: string[];
-  chapters: Chapter[];
-};
-
-export type ResolvedChapter = Omit<Chapter, "photoIds"> & { photos: Photo[] };
-
-export type ResolvedCollection = Omit<Collection, "chapters" | "coverIds"> & {
   covers: Photo[];
   chapters: ResolvedChapter[];
   photos: Photo[];
 };
 
-export type Curation = {
-  order: string[];
-  excluded: string[];
-  collections: Collection[];
-};
+export type Catalog = { photos: Photo[]; collections: ResolvedCollection[] };

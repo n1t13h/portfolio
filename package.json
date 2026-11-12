@@ -5,15 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run catalog:fetch && vite build && cp dist/index.html dist/404.html",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "photos:snapshot": "node scripts/unsplash-snapshot.mjs",
-    "photos:export-seed": "node scripts/export-curation.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "postbuild": "cp dist/index.html dist/404.html"
+    "postbuild": "cp dist/index.html dist/404.html",
+    "catalog:fetch": "node scripts/fetch-catalog.mjs",
+    "predev": "node scripts/fetch-catalog.mjs --if-missing"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

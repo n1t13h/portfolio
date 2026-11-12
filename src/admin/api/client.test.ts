@@ -95,10 +95,6 @@ describe("admin api client", () => {
     expect(JSON.parse(init.body as string)).toEqual({ photoIds: ["p1", "p2"] });
   });
 
-  it("falls back to the default API address when none is configured", async () => {
-    const { defaultApiBaseUrl } = await import("./client");
-    expect(defaultApiBaseUrl()).toMatch(/^https?:\/\//);
-  });
 });
 
 describe("expired sessions", () => {

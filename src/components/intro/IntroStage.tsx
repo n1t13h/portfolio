@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Photo } from "@/data/photos";
-import { imgUrl } from "@/lib/unsplash";
+import { photoSrc } from "@/lib/images";
 import { FLOATS } from "./floats";
 
 const FADE = 700;
@@ -135,5 +135,5 @@ export function IntroStage({
 
 /** A photo that fills its tile (floating tiles and the wordmark window). */
 export function PhotoImg({ photo, width }: { photo: Photo; width: number }) {
-  return <img src={imgUrl(photo.pid, width)} alt="" className="block h-full w-full object-cover" />;
+  return <img src={photoSrc(photo, width)} alt="" className="block h-full w-full object-cover" />;
 }

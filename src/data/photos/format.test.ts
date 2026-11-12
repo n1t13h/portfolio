@@ -1,6 +1,6 @@
 import { formatPhotoMeta } from "./format";
 
-const base = { id: "a", pid: "1-x", aspectRatio: 1.5, title: "T", unsplashUrl: "u" };
+const base = { id: "a", aspectRatio: 1.5, title: "T", variants: {} };
 
 it("formats full metadata", () => {
   expect(

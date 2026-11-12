@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { site } from "@/content/site";
+import { ContactDialog } from "./ContactDialog";
 
 declare global {
   interface Window {
@@ -22,7 +24,8 @@ const socials = [
 ];
 
 export function Contact() {
-  const { heading, line, cta } = site.contact;
+  const { heading, line, cta, message } = site.contact;
+  const [writing, setWriting] = useState(false);
   return (
     <section id="contact" className="grid grid-cols-1 gap-7 md:grid-cols-[1fr_2fr]">
       <div>
@@ -31,6 +34,15 @@ export function Contact() {
         <button type="button" onClick={bookCall} className="inline-flex min-h-11 items-center text-[22px] tracking-[-0.02em] hover:underline">
           {cta}
         </button>
+        <br />
+        <button
+          type="button"
+          onClick={() => setWriting(true)}
+          className="inline-flex min-h-11 items-center text-[22px] tracking-[-0.02em] hover:underline"
+        >
+          {message.cta}
+        </button>
+        <ContactDialog open={writing} onOpenChange={setWriting} />
       </div>
       <div className="grid grid-cols-2 gap-5 text-[15px] sm:grid-cols-4">
         {socials.map((s) => (

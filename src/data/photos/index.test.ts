@@ -1,30 +1,4 @@
-import snapshot from "./snapshot.json";
-import curation from "./curation";
-import { collectionOf, getCollection, getPhotos, getCollections, orderPhotos, resolveCollections } from "./index";
-import type { Collection, Photo } from "./types";
-
-const photo = (id: string): Photo => ({ id, pid: `p-${id}`, aspectRatio: 1.5, title: id, unsplashUrl: "u" });
-const col = (partial: Partial<Collection>): Collection => ({
-  slug: "s", title: "S", place: "P", year: "2026", intro: "", coverIds: [], chapters: [], ...partial,
-});
-
-it("drops curated ids missing from the snapshot and warns", () => {
-  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-  const [c] = resolveCollections([photo("a")], {
-    order: [], excluded: [],
-    collections: [col({ coverIds: ["a", "ghost"], chapters: [{ title: "x", note: "", photoIds: ["ghost", "a"] }] })],
-  });
-  expect(c.chapters[0].photos.map((p) => p.id)).toEqual(["a"]);
-  expect(c.covers.map((p) => p.id)).toEqual(["a"]);
-  expect(warn).toHaveBeenCalledWith(expect.stringContaining("ghost"));
-  warn.mockRestore();
-});
-
-it("orderPhotos drops exclusions and follows order, then the rest", () => {
-  expect(
-    orderPhotos([photo("a"), photo("b"), photo("c")], { order: ["c"], excluded: ["b"], collections: [] }).map((p) => p.id),
-  ).toEqual(["c", "a"]);
-});
+import { collectionOf, findPhoto, getCollection, getCollections, getPhotos, photoKey } from "./index";
 
 it("getCollection returns null for an unknown slug", async () => {
   expect(await getCollection("nope")).toBeNull();
@@ -43,18 +17,24 @@ it("collectionOf finds the owning collection", async () => {
   expect(collectionOf("ghost", cols)).toBeUndefined();
 });
 
-it("snapshot ids are the Unsplash id (last 11 chars of the url slug) and unique", () => {
-  const ids = (snapshot as Photo[]).map((p) => p.id);
-  (snapshot as Photo[]).forEach((p) => {
-    const last = p.unsplashUrl.split("/").pop()!;
-    expect(p.id).toHaveLength(11);
-    expect(last.endsWith(p.id)).toBe(true);
-  });
-  expect(new Set(ids).size).toBe(ids.length);
+it("findPhoto matches a photo by its id or by its Unsplash id (old shared links)", async () => {
+  const photos = await getPhotos();
+  expect(findPhoto(photos, photos[0].id)).toBe(0);
+  const fire = findPhoto(photos, "I5lzt9e4WMY");
+  expect(fire).toBeGreaterThanOrEqual(0);
+  expect(photos[fire].title).toBe("Performer creating a fiery hoop with fire");
+  expect(findPhoto(photos, "nope")).toBe(-1);
 });
 
-it("getPhotos omits excluded ids and starts with order[0]", async () => {
+it("photoKey prefers the Unsplash id so links keep their current form", async () => {
   const photos = await getPhotos();
-  curation.excluded.forEach((id) => expect(photos.map((p) => p.id)).not.toContain(id));
-  expect(photos[0].id).toBe(curation.order[0]);
+  expect(photoKey(photos[0])).toBe(photos[0].unsplashId);
+  expect(photoKey({ ...photos[0], unsplashId: undefined })).toBe(photos[0].id);
+});
+
+it("every photo has CDN image sizes", async () => {
+  (await getPhotos()).forEach((p) => {
+    expect(Object.keys(p.variants).length).toBeGreaterThan(0);
+    Object.values(p.variants).forEach((url) => expect(url).toMatch(/^https:\/\/cdn\.ntshptl\.in\//));
+  });
 });

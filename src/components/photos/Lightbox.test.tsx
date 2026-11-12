@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { renderAt } from "@/test/utils";
 import { getPhotos } from "@/data/photos";
+import type { Photo } from "@/data/photos";
+import { apiBase } from "@/lib/api";
+import { Lightbox } from "./Lightbox";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const currentCounter = () => screen.getByTestId("lightbox-counter").textContent ?? "";
@@ -89,5 +93,52 @@ describe("Lightbox", () => {
     observer.takeRecords().forEach((r) => visible(r.oldValue) && flashes.push(r.oldValue!));
     observer.disconnect();
     expect(flashes).toEqual([]);
+  });
+});
+
+describe("Lightbox for a photo uploaded directly (not from Unsplash, no EXIF)", () => {
+  const direct: Photo = {
+    id: "abc123",
+    title: "Straight from the camera",
+    aspectRatio: 1.5,
+    variants: { "800": "https://cdn.ntshptl.in/photos/abc123/800.webp" },
+  };
+  const renderLightbox = (photo: Photo) =>
+    render(
+      <MemoryRouter initialEntries={[`/photos?photo=${photo.id}`]}>
+        <Lightbox photos={[photo]} collections={[]} />
+      </MemoryRouter>,
+    );
+
+  it("shows no Unsplash link", () => {
+    renderLightbox(direct);
+    expect(screen.getByRole("dialog")).toHaveTextContent("Straight from the camera");
+    expect(within(screen.getByRole("dialog")).queryByText(/unsplash/i)).toBeNull();
+  });
+
+  it("never shows null or undefined in the meta line", () => {
+    renderLightbox(direct);
+    expect(screen.getByRole("dialog").textContent).not.toMatch(/null|undefined/);
+  });
+
+  it("shows no Download link unless downloads are allowed", () => {
+    renderLightbox(direct);
+    expect(within(screen.getByRole("dialog")).queryByText("Download")).toBeNull();
+  });
+
+  it("links Download to the API when downloads are allowed", () => {
+    renderLightbox({ ...direct, downloadUrl: "/photos/abc123/download" });
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute(
+      "href",
+      `${apiBase()}/photos/abc123/download`,
+    );
+  });
+
+  it("loads the image from the CDN", () => {
+    renderLightbox(direct);
+    expect(within(screen.getByRole("dialog")).getByRole("img")).toHaveAttribute(
+      "src",
+      "https://cdn.ntshptl.in/photos/abc123/800.webp",
+    );
   });
 });

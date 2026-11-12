@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { imgUrl } from "@/lib/unsplash";
+import { photoSrc } from "@/lib/images";
 import type { Photo } from "@/data/photos";
 
 const ROTATIONS = [-4, 3, -1, 5];
@@ -68,7 +68,7 @@ export function CursorStack({ photos, active }: { photos: Photo[]; active: boole
       {photos.map((p, i) => (
         <img
           key={p.id}
-          src={imgUrl(p.pid, 600)}
+          src={photoSrc(p, 600)}
           alt=""
           style={{ transform: `scale(${i === index ? 1 : 0.94}) rotate(${ROTATIONS[i % ROTATIONS.length]}deg)` }}
           className={`absolute inset-0 h-full w-full rounded-[6px] object-cover shadow-[0_30px_60px_rgba(0,0,0,.18)] transition-[opacity,transform] duration-500 ease-out ${

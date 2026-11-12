@@ -1,4 +1,5 @@
-import { imgUrl } from "@/lib/unsplash";
+import { photoKey } from "@/data/photos";
+import { photoSrc } from "@/lib/images";
 import type { Photo } from "@/data/photos";
 
 export function ContactSheet({ photos, onOpen }: { photos: Photo[]; onOpen: (id: string) => void }) {
@@ -10,11 +11,11 @@ export function ContactSheet({ photos, onOpen }: { photos: Photo[]; onOpen: (id:
           type="button"
           data-testid="sheet-photo"
           aria-label={p.title}
-          onClick={() => onOpen(p.id)}
+          onClick={() => onOpen(photoKey(p))}
           className="group aspect-square cursor-zoom-in overflow-hidden rounded-[3px] bg-[#f1f1f0]"
         >
           <img
-            src={imgUrl(p.pid, 400)}
+            src={photoSrc(p, 400)}
             alt=""
             loading="lazy"
             className="h-full w-full object-cover grayscale transition-[filter] duration-[400ms] motion-reduce:transition-none group-hover:grayscale-0"
