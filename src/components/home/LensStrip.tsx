@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { getPhotos } from "@/data/photos";
-import { imgUrl } from "@/lib/unsplash";
+import { photoSrc } from "@/lib/images";
 
 const HEIGHTS = [150, 200, 130, 180, 160, 210, 140, 190];
 const COUNT = 15;
@@ -39,7 +39,7 @@ export function LensStrip() {
               className="block flex-none overflow-hidden rounded-[4px] bg-[#f1f1f0] transition-transform duration-[600ms] ease-out hover:-translate-y-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
             >
               <img
-                src={imgUrl(p.pid, 500)}
+                src={photoSrc(p, 500)}
                 alt=""
                 loading="lazy"
                 className="block h-full w-full object-cover"

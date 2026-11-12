@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getPhotos, type Photo } from "@/data/photos";
-import { imgUrl } from "@/lib/unsplash";
+import { photoSrc } from "@/lib/images";
 import { IntroStage, PhotoImg } from "@/components/intro/IntroStage";
 import { FLOATS, FLOAT_COUNT } from "@/components/intro/floats";
 import { markIntroPlayed } from "@/components/intro/session";
@@ -19,7 +19,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
         setPhotos(p);
         p.slice(0, Math.max(FLOAT_COUNT, WIN_COUNT)).forEach((ph, i) => {
           const img = new Image();
-          img.src = imgUrl(ph.pid, i < FLOAT_COUNT ? FLOATS[i].w : 500);
+          img.src = photoSrc(ph, i < FLOAT_COUNT ? FLOATS[i].w : 500);
         });
       })
       .catch(() => {});

@@ -1,11 +1,8 @@
-"""Seeding against a real database, and the Node script that exports the seed file."""
+"""Seeding against a real database."""
 
 import json
-import shutil
-import subprocess
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -45,27 +42,3 @@ def test_a_complete_seed_on_a_real_database_then_a_second_run_changes_nothing(
     collection = db.scalars(select(Collection)).one()
     assert collection.cover_photo_ids == [photos["a"].id, photos["c"].id]
     assert len(db.scalars(select(Chapter)).all()) == 2
-
-
-@pytest.mark.skipif(shutil.which("node") is None, reason="needs node to read curation.ts")
-def test_export_script_produces_a_seed_the_backend_accepts(tmp_path: Path) -> None:
-    repo = Path(__file__).parents[4]
-    out = tmp_path / "curation.json"
-    subprocess.run(
-        ["node", str(repo / "scripts" / "export-curation.mjs"), str(out)],
-        check=True,
-        capture_output=True,
-    )
-    from app.schemas.seed import SeedData
-
-    data = SeedData.model_validate_json(out.read_text())
-    snapshot_ids = {p.id for p in data.photos}
-    assert len(data.photos) == 43
-    assert {c.slug for c in data.collections} == {
-        "ujjain-omkareshwar-indore",
-        "mumbai",
-        "elsewhere",
-    }
-    for collection in data.collections:
-        for chapter in collection.chapters:
-            assert set(chapter.photo_ids) <= snapshot_ids

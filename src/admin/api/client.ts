@@ -1,3 +1,4 @@
+import { apiBase } from "@/lib/api";
 import type {
   AdminChapter,
   AdminCollection,
@@ -16,12 +17,6 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
-}
-
-export function defaultApiBaseUrl(): string {
-  const configured = import.meta.env.VITE_API_URL as string | undefined;
-  if (configured) return configured.replace(/\/$/, "");
-  return import.meta.env.DEV ? "http://localhost:8000" : "https://api.ntshptl.in";
 }
 
 interface Options {
@@ -51,7 +46,7 @@ function messageFrom(body: unknown, status: number): string {
 export type AdminApi = ReturnType<typeof createAdminApi>;
 
 export function createAdminApi({
-  baseUrl = defaultApiBaseUrl(),
+  baseUrl = apiBase(),
   prefix,
   fetch: fetchImpl,
   onUnauthorized,

@@ -17,6 +17,7 @@ from app.schemas.public import (
 )
 from app.uow import UnitOfWorkFactory
 
+UNSPLASH_DOWNLOAD = "https://unsplash.com/photos/{}/download?force=true"
 DOWNLOAD_URL_TTL_SECONDS = 300
 
 
@@ -72,9 +73,15 @@ class CatalogService:
             )
 
     def download_url(self, photo_id: str) -> str:
-        """A short-lived link to the download copy, for a public photo whose owner allowed it."""
+        """Where to download a public photo whose owner allowed it.
+
+        Photos from Unsplash download the full-size original from Unsplash (which counts it in
+        the owner's Unsplash stats); others get a short-lived link to the 2400 px copy in R2.
+        """
         with self._uow() as uow:
             photo = uow.catalog.get_downloadable_photo(photo_id)
+            if photo is not None and photo.unsplash_id:
+                return UNSPLASH_DOWNLOAD.format(photo.unsplash_id)
             if photo is None or not photo.download_key:
                 raise NotFound("not found")
             return self._storage.presign_get(

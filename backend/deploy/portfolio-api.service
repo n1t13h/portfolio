@@ -12,10 +12,15 @@ EnvironmentFile=/etc/portfolio/backend.env
 # Apply any new migrations, then start. One worker keeps memory small and SQLite happy.
 ExecStartPre=/opt/portfolio/backend/.venv/bin/alembic upgrade head
 ExecStart=/opt/portfolio/backend/.venv/bin/uvicorn app.main:create_app --factory \
-    --host 127.0.0.1 --port 8000 --workers 1 \
+    --host 127.0.0.1 --port 8100 --workers 1 \
     --proxy-headers --forwarded-allow-ips=127.0.0.1
-Restart=on-failure
+Restart=always
 RestartSec=3
+
+# Shared t4g.nano with CraftClash: past MemoryHigh the kernel pushes this service into swap,
+# and MemoryMax restarts it rather than letting it starve the quiz app.
+MemoryHigh=150M
+MemoryMax=300M
 
 # Hardening: the service can write only its data directory.
 NoNewPrivileges=true

@@ -25,3 +25,6 @@ dist-ssr
 
 # Brainstorming mockups
 .superpowers/
+
+# Photo catalog fetched from the API at build time (scripts/fetch-catalog.mjs)
+src/data/photos/catalog.json

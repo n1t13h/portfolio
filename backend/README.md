@@ -23,7 +23,7 @@ app/
   core/              config, engine/session factory/Base, clock, security helpers, errors, limits
   cli.py             create-admin, reset-admin, sync, seed, backup, notify-pending
 alembic/versions/    database migrations
-deploy/              Caddy + systemd files
+deploy/              deploy.sh (laptop) + server-setup.sh, Caddy site, systemd units
 tests/               unit/<entity>/ and integration/<entity>/, plus fakes/ and support/
 ```
 
@@ -154,9 +154,10 @@ photos it has not seen, as drafts. It stops at the first photo it already has, r
 could not finish, and respects Unsplash's 50 requests/hour demo limit. `--full` re-walks every page.
 Photos you delete are remembered and never come back.
 
-**First import of the existing site**: `npm run photos:export-seed` (repo root) writes
-`backend/seed/curation.json`; then `python -m app.cli seed`. It costs about one Unsplash request per
-photo, so a large library may need a second run after the hourly limit resets. Safe to repeat.
+**First import of the existing site**: done on 2026-11-12 (`python -m app.cli seed`, 43 photos and 3
+collections). The frontend export script that produced `backend/seed/curation.json` was removed the
+same day, when the site switched to reading the API; the seed command stays for disaster recovery
+from an old `curation.json`. It costs about one Unsplash request per photo and is safe to repeat.
 
 **Backups**: nightly copy of the database to `backups/YYYY-MM-DD.db` in the private bucket, 30 days
 kept. To restore: stop the API, download a copy to `/var/lib/portfolio/portfolio.db`, start it.
@@ -190,30 +191,32 @@ itself, so the two are saved together or not at all. Scheduled syncs and the see
 3. **Telegram**: create a bot with @BotFather, message it once, read your chat id from
    `https://api.telegram.org/bot<token>/getUpdates`.
 4. **Unsplash**: an application access key (demo tier is fine).
-5. **Server** (smallest EC2 that has 1 GB RAM, e.g. `t4g.micro`; open ports 80/443 only):
+5. **Server**: the API shares CraftClash's EC2 box (t4g.nano, `15.252.177.189`). The instance,
+   firewall and IP are Terraform-managed in `~/code/craftclash/infra/terraform`; don't manage them
+   from here. Caddy is shared too: this repo only owns `/etc/caddy/sites/portfolio.caddy`, the API
+   listens on `127.0.0.1:8100` (CraftClash has 8000), and Caddy is reloaded, never restarted.
+   From `backend/`:
    ```bash
-   sudo useradd --system --home /opt/portfolio portfolio
-   sudo mkdir -p /var/lib/portfolio /etc/portfolio && sudo chown portfolio: /var/lib/portfolio
-   # copy this directory to /opt/portfolio/backend, then:
-   cd /opt/portfolio/backend && uv sync --no-dev
-   sudo install -m 600 -o portfolio /path/to/.env /etc/portfolio/backend.env   # DATABASE_URL=sqlite:////var/lib/portfolio/portfolio.db
-   sudo ln -s /etc/portfolio/backend.env /opt/portfolio/backend/.env           # so the CLI reads it too
-   sudo cp deploy/*.service deploy/*.timer /etc/systemd/system/ && sudo cp deploy/Caddyfile /etc/caddy/
-   sudo -u portfolio .venv/bin/alembic upgrade head
-   sudo -u portfolio .venv/bin/python -m app.cli create-admin <username>
-   sudo systemctl enable --now portfolio-api portfolio-sync.timer portfolio-backup.timer portfolio-notify.timer caddy
+   SSH_KEY=~/.ssh/craftclash-ec2.pem deploy/deploy.sh
    ```
-6. DNS: `api.ntshptl.in` → the EC2 address, **DNS-only (grey cloud)** so the login lockout sees real
-   client IPs (see the comment in `deploy/Caddyfile`).
+   The first run creates `/etc/portfolio/backend.env` with a fresh admin path and session secret.
+   Fill in the R2, Unsplash and Telegram keys there and deploy again; each timer stays off until
+   its key is set. Then create the admin:
+   ```bash
+   ssh -i ~/.ssh/craftclash-ec2.pem ubuntu@15.252.177.189
+   cd /opt/portfolio/backend && sudo -u portfolio .venv/bin/python -m app.cli create-admin <username>
+   ```
+   RAM is tight (the API is capped at `MemoryMax=300M`). If the box runs out, the fix is
+   `t4g.micro` in the craftclash Terraform, which restarts both apps.
+6. DNS: `api.ntshptl.in` A record → `15.252.177.189`, **proxied (orange)**. `deploy/portfolio.caddy`
+   refuses anything not from Cloudflare and takes the visitor IP from `CF-Connecting-IP`. In
+   Cloudflare: SSL/TLS mode **Full (strict)**, and a Cache Rule (Cloudflare doesn't cache JSON by
+   default): hostname `api.ntshptl.in`, method `GET`, path starts with `/photos` or `/collections`
+   → Eligible for cache, Edge TTL "Use cache-control header if present, bypass cache if not".
+   The public responses say `max-age=300`, so admin edits show up within about 5 minutes.
 7. Seed and check: `python -m app.cli seed`, then `curl https://api.ntshptl.in/health`.
-
-The unit files and Caddyfile were written without access to `systemd-analyze` or `caddy`; run
-`systemd-analyze verify /etc/systemd/system/portfolio-*.service` and `caddy validate` on the server
-before enabling them.
 
 ## Updating
 
-```bash
-cd /opt/portfolio/backend && git pull && uv sync --no-dev
-sudo systemctl restart portfolio-api    # runs `alembic upgrade head` first
-```
+Run `deploy/deploy.sh` again. It backs up the database, syncs dependencies and restarts the API,
+which applies new migrations (`alembic upgrade head`) before it starts.

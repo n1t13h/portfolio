@@ -19,6 +19,13 @@ export default defineConfig(({ mode }) => ({
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
     globals: true,
+    // Tests read a committed fixture, not the build-time catalog fetched from the API.
+    alias: [
+      {
+        find: /^@\/data\/photos\/catalog\.json$/,
+        replacement: path.resolve(__dirname, "./src/test/fixtures/catalog.json"),
+      },
+    ],
   },
   resolve: {
     alias: {

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { formatPhotoMeta, type Photo } from "@/data/photos";
 import type { EssayBlock as Block } from "@/data/photos/essayLayout";
-import { imgUrl, srcSet } from "@/lib/unsplash";
+import { photoKey } from "@/data/photos";
+import { photoSrc, photoSrcSet } from "@/lib/images";
 
 const prefersReducedMotion = () =>
   typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -39,14 +40,14 @@ function Fig({ photo, width, sizes, className = "", onOpen }: {
   return (
     <button
       type="button"
-      onClick={() => onOpen(photo.id)}
+      onClick={() => onOpen(photoKey(photo))}
       aria-label={`Open ${photo.title}`}
       className={`block w-full cursor-zoom-in ${className}`}
     >
       <img
         loading="lazy"
-        src={imgUrl(photo.pid, width)}
-        srcSet={srcSet(photo.pid, [width / 2, width])}
+        src={photoSrc(photo, width)}
+        srcSet={photoSrcSet(photo)}
         sizes={sizes}
         alt={photo.title}
         style={{ aspectRatio: photo.aspectRatio }}

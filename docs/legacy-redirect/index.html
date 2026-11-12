@@ -1,0 +1,21 @@
+<!doctype html>
+<!--
+  Goes in nitishpatel/nitishpatel.github.io as both index.html and 404.html, after the site moved
+  to n1t13h/portfolio. Sends every old address to the same path on portfolio.ntshptl.in.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nitish Patel</title>
+    <link rel="canonical" href="https://portfolio.ntshptl.in/" />
+    <meta name="robots" content="noindex" />
+    <script>
+      location.replace("https://portfolio.ntshptl.in" + location.pathname + location.search + location.hash);
+    </script>
+    <noscript><meta http-equiv="refresh" content="0; url=https://portfolio.ntshptl.in/" /></noscript>
+  </head>
+  <body>
+    <p>This site has moved to <a href="https://portfolio.ntshptl.in/">portfolio.ntshptl.in</a>.</p>
+  </body>
+</html>

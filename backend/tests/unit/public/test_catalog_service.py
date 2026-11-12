@@ -212,3 +212,53 @@ def test_the_private_bucket_is_used_for_downloads_only(
     seed(fake_uow)
     service.download_url("g3")
     assert storage.objects == {} and Bucket.PRIVATE.value in service.download_url("g3")
+
+
+UNSPLASH_PAGE = "https://unsplash.com/photos/fire-hoop-I5lzt9e4WMY"
+
+
+def test_public_photos_carry_their_unsplash_id_and_page(
+    service: CatalogService, fake_uow: FakeUnitOfWork
+) -> None:
+    with fake_uow as uow:
+        uow.photos.add(
+            photo("u", unsplash_id="I5lzt9e4WMY", unsplash_url=UNSPLASH_PAGE, **published())
+        )
+        uow.commit()
+    [p] = service.photos()
+    assert (p.unsplash_id, p.unsplash_url) == ("I5lzt9e4WMY", UNSPLASH_PAGE)
+    assert '"unsplashId":"I5lzt9e4WMY"' in p.model_dump_json(by_alias=True)
+
+
+def test_an_unsplash_photo_downloads_from_unsplash(
+    service: CatalogService, fake_uow: FakeUnitOfWork
+) -> None:
+    with fake_uow as uow:
+        uow.photos.add(photo("u", unsplash_id="I5lzt9e4WMY", **published(allow_download=True)))
+        uow.commit()
+    assert (
+        service.download_url("u") == "https://unsplash.com/photos/I5lzt9e4WMY/download?force=true"
+    )
+
+
+def test_an_unsplash_photo_without_a_download_copy_still_downloads_from_unsplash(
+    service: CatalogService, fake_uow: FakeUnitOfWork
+) -> None:
+    with fake_uow as uow:
+        uow.photos.add(
+            make_photo(
+                "u", unsplash_id="I5lzt9e4WMY", download_key=None, **published(allow_download=True)
+            )
+        )
+        uow.commit()
+    assert service.download_url("u").startswith("https://unsplash.com/photos/I5lzt9e4WMY/")
+
+
+def test_an_unsplash_photo_with_downloads_off_is_still_refused(
+    service: CatalogService, fake_uow: FakeUnitOfWork
+) -> None:
+    with fake_uow as uow:
+        uow.photos.add(photo("u", unsplash_id="I5lzt9e4WMY", **published()))
+        uow.commit()
+    with pytest.raises(NotFound):
+        service.download_url("u")

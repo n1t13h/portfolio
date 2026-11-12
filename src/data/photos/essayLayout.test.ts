@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildEssayBlocks, type EssayBlock } from "./essayLayout";
 import type { Photo } from "./types";
 
-const base: Photo = { id: "", pid: "pid", aspectRatio: 1, title: "t", unsplashUrl: "https://unsplash.com/photos/x" };
+const base: Photo = { id: "", aspectRatio: 1, title: "t", variants: {} };
 const L = (id: string): Photo => ({ ...base, id, aspectRatio: 1.5 });
 const P = (id: string): Photo => ({ ...base, id, aspectRatio: 0.667 });
 const kinds = (blocks: EssayBlock[]) => blocks.map((b) => b.kind);

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { collectionOf, formatPhotoMeta } from "@/data/photos";
+import { collectionOf, findPhoto, formatPhotoMeta, photoKey } from "@/data/photos";
 import type { Photo, ResolvedCollection } from "@/data/photos";
-import { imgUrl, srcSet } from "@/lib/unsplash";
+import { apiBase } from "@/lib/api";
+import { photoSrc, photoSrcSet } from "@/lib/images";
 
 const PARAM = "photo";
 
@@ -40,7 +41,7 @@ export function Lightbox({
   collections: ResolvedCollection[];
 }) {
   const { photoId, open, close } = useLightboxParam();
-  const index = photoId === null ? -1 : photos.findIndex((p) => p.id === photoId);
+  const index = photoId === null ? -1 : findPhoto(photos, photoId);
   const isOpen = index >= 0;
   const root = useRef<HTMLDivElement>(null);
   const closeBtn = useRef<HTMLButtonElement>(null);
@@ -51,7 +52,7 @@ export function Lightbox({
 
   const total = photos.length;
   const go = useCallback(
-    (delta: number) => open(photos[(index + delta + total) % total].id),
+    (delta: number) => open(photoKey(photos[(index + delta + total) % total])),
     [open, photos, index, total],
   );
 
@@ -146,8 +147,8 @@ export function Lightbox({
         </button>
         <img
           key={photo.id}
-          src={imgUrl(photo.pid, 1400)}
-          srcSet={srcSet(photo.pid, [800, 1400, 2000])}
+          src={photoSrc(photo, 1400)}
+          srcSet={photoSrcSet(photo)}
           sizes="(min-width: 640px) calc(100vw - 180px), 100vw"
           alt={photo.title}
           className={`max-h-[calc(100vh-160px)] max-w-full rounded-md shadow-[0_30px_80px_rgba(0,0,0,.12)] transition-[transform,opacity] duration-[600ms] ease-out motion-reduce:transition-none motion-reduce:opacity-100 motion-reduce:scale-100 ${
@@ -163,7 +164,7 @@ export function Lightbox({
           →
         </button>
       </div>
-      <div className="grid grid-cols-1 items-baseline gap-x-7 gap-y-2 px-4 pb-6 pt-[18px] sm:grid-cols-[1fr_auto_auto] sm:px-7">
+      <div className="grid grid-cols-1 items-baseline gap-x-7 gap-y-2 px-4 pb-6 pt-[18px] sm:grid-cols-[1fr_auto_auto_auto] sm:px-7">
         <div>
           <h3 className="text-base font-medium">{photo.title}</h3>
           {meta && <span className="mt-1 block font-mono text-[13px] text-[#6b6b6b]">{meta}</span>}
@@ -176,14 +177,24 @@ export function Lightbox({
             From {collection.title} →
           </Link>
         )}
-        <a
-          href={photo.unsplashUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[15px] text-[#6b6b6b] hover:text-[#0b0b0b]"
-        >
-          Unsplash ↗
-        </a>
+        {photo.downloadUrl && (
+          <a
+            href={`${apiBase()}${photo.downloadUrl}`}
+            className="text-[15px] text-[#6b6b6b] hover:text-[#0b0b0b]"
+          >
+            Download
+          </a>
+        )}
+        {photo.unsplashUrl && (
+          <a
+            href={photo.unsplashUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[15px] text-[#6b6b6b] hover:text-[#0b0b0b]"
+          >
+            Unsplash ↗
+          </a>
+        )}
       </div>
     </div>
   );
