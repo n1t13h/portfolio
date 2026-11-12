@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { site } from "@/content/site";
 import { apiBase } from "@/lib/api";
@@ -65,13 +65,19 @@ export function ContactDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const [website, setWebsite] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  // Read after the request settles: the visitor may have closed the dialog while it was sending.
+  const isOpen = useRef(open);
+  isOpen.current = open;
+
+  const reset = () => {
+    setValues(EMPTY);
+    setWebsite("");
+    setErrors({});
+    setState("idle");
+  };
 
   const change = (open: boolean) => {
-    if (!open && state === "sent") {
-      setValues(EMPTY);
-      setWebsite("");
-      setState("idle");
-    }
+    if (!open && state === "sent") reset();
     onOpenChange(open);
   };
 
@@ -88,7 +94,11 @@ export function ContactDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       message: values.message.trim(),
       website,
     });
-    if (result === "sent") setState("sent");
+    if (result === "sent") {
+      // Closed mid-send: there is no thanks screen to show, so start fresh next time.
+      if (isOpen.current) setState("sent");
+      else reset();
+    }
     else if (result === "failed") setState("failed");
     else {
       setErrors(result.fieldErrors);

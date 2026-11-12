@@ -11,7 +11,6 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "postbuild": "cp dist/index.html dist/404.html",
     "catalog:fetch": "node scripts/fetch-catalog.mjs",
     "predev": "node scripts/fetch-catalog.mjs --if-missing"
   },

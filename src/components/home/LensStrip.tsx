@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { getPhotos } from "@/data/photos";
 import { photoSrc } from "@/lib/images";
+import { photoKey } from "@/data/photos";
 
 const HEIGHTS = [150, 200, 130, 180, 160, 210, 140, 190];
 const COUNT = 15;
@@ -33,7 +34,7 @@ export function LensStrip() {
           return (
             <Link
               key={p.id}
-              to={`/photos?photo=${p.id}`}
+              to={`/photos?photo=${photoKey(p)}`}
               aria-label={`Photo: ${p.title}`}
               style={{ height: h, width: Math.round(h * p.aspectRatio) }}
               className="block flex-none overflow-hidden rounded-[4px] bg-[#f1f1f0] transition-transform duration-[600ms] ease-out hover:-translate-y-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0"

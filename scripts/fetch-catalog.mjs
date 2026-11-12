@@ -54,10 +54,18 @@ function httpGetJson(base) {
   };
 }
 
-async function main(argv) {
-  const ifMissing = argv.includes("--if-missing");
+/** `[--if-missing] [--out <path>]`; `out` is undefined when not given (main picks the default). */
+export function parseArgs(argv) {
   const outAt = argv.indexOf("--out");
-  const out = outAt >= 0 ? argv[outAt + 1] : fileURLToPath(new URL("../src/data/photos/catalog.json", import.meta.url));
+  const out = outAt >= 0 ? argv[outAt + 1] : undefined;
+  if (outAt >= 0 && (!out || out.startsWith("--"))) throw new Error("--out needs a file path");
+  return { ifMissing: argv.includes("--if-missing"), out };
+}
+
+async function main(argv) {
+  const args = parseArgs(argv);
+  const ifMissing = args.ifMissing;
+  const out = args.out ?? fileURLToPath(new URL("../src/data/photos/catalog.json", import.meta.url));
   if (ifMissing && existsSync(out)) return;
 
   const base = (process.env.CATALOG_API_URL ?? "https://api.ntshptl.in").replace(/\/$/, "");

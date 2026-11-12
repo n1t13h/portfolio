@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderAt } from "@/test/utils";
 import { apiBase } from "@/lib/api";
@@ -121,6 +121,21 @@ describe("ContactDialog", () => {
     await fill();
     await send();
     expect(await screen.findByText("That email doesn't look right.")).toBeInTheDocument();
+  });
+
+  it("starts empty again when it was closed while the message was still sending", async () => {
+    let finish: (r: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => (finish = resolve))));
+    render(<Harness />);
+    await fill();
+    await send();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await act(async () => finish(new Response("{}", { status: 202 })));
+    await userEvent.click(screen.getByRole("button", { name: "reopen" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByText("Thanks, got it.")).toBeNull();
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("");
   });
 
   it("starts empty again after a message was sent", async () => {
