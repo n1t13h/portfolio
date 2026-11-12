@@ -3,6 +3,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderAt } from "@/test/utils";
 import { site } from "@/content/site";
+import { getPhotos, photoKey } from "@/data/photos";
 
 afterEach(() => {
   delete window.Calendly;
@@ -66,6 +67,16 @@ describe("Index", () => {
     const links = await within(document.getElementById("lens")!).findAllByRole("link", { name: /photo:/i });
     expect(links.length).toBeGreaterThanOrEqual(12);
     expect(links[0].getAttribute("href")).toMatch(/^\/photos\?photo=/);
+  });
+
+  it("lens strip links use the same ?photo= form as the rest of the site (the Unsplash id)", async () => {
+    renderAt("/");
+    const links = await within(document.getElementById("lens")!).findAllByRole("link", { name: /photo:/i });
+    const photos = await getPhotos();
+    const keys = new Set(photos.map(photoKey));
+    links.forEach((a) => expect(keys.has(new URLSearchParams(a.getAttribute("href")!.split("?")[1]).get("photo")!)).toBe(true));
+    expect(links.some((a) => a.getAttribute("href")!.includes(photos.find((p) => p.unsplashId)!.unsplashId!))).toBe(true);
+    links.forEach((a) => expect(a.getAttribute("href")).not.toMatch(/photo=[0-9a-f]{32}$/));
   });
 
   it("reserves the lens strip height so hash landings don't shift", () => {

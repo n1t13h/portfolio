@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain .mjs script without types
-import { buildCatalog, normalizePhoto } from "./fetch-catalog.mjs";
+import { buildCatalog, normalizePhoto, parseArgs } from "./fetch-catalog.mjs";
 
 const variants = { "800": "https://cdn/x/800.webp" };
 const apiPhoto = (over: Record<string, unknown> = {}) => ({
@@ -94,5 +94,19 @@ describe("buildCatalog", () => {
     await expect(
       buildCatalog(stub({ "/photos": [apiPhoto()], "/collections": [{ slug: "a" }], "/collections/a": new Error("502") })),
     ).rejects.toThrow("502");
+  });
+});
+
+describe("parseArgs", () => {
+  it("reads --if-missing and --out", () => {
+    expect(parseArgs(["--if-missing", "--out", "x.json"])).toEqual({ ifMissing: true, out: "x.json" });
+  });
+
+  it("leaves out unset (the default path is chosen later)", () => {
+    expect(parseArgs([])).toEqual({ ifMissing: false, out: undefined });
+  });
+
+  it.each([[["--out"]], [["--out", "--if-missing"]]])("refuses --out without a path: %j", (argv) => {
+    expect(() => parseArgs(argv)).toThrow(/--out needs a file path/);
   });
 });
