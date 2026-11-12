@@ -22,6 +22,8 @@ class PublicPhoto(CamelModel):
     variants: dict[str, str] = Field(validation_alias=AliasChoices("variants", "variant_keys"))
     allow_download: bool
     download_url: str | None = None  # a path on this API; only present when downloads are allowed
+    unsplash_id: str | None = None  # also keeps old ?photo=<unsplash id> links working
+    unsplash_url: str | None = None
 
     @field_validator("variants")
     @classmethod

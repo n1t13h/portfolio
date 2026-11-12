@@ -26,6 +26,12 @@ def test_presigned_put_targets_private_bucket_and_expires(settings: Settings) ->
     assert "X-Amz-Expires=600" in url
 
 
+def test_a_download_link_makes_the_browser_save_the_file(settings: Settings) -> None:
+    # Without it R2 serves the JPEG inline and the site's tab navigates to the bare image.
+    url = _storage(settings).presign_get(Bucket.PRIVATE, "downloads/abc.jpg", 300)
+    assert "response-content-disposition=attachment%3B%20filename%3D%22abc.jpg%22" in url
+
+
 def test_public_url_has_no_double_slash(settings: Settings) -> None:
     assert _storage(settings).public_url("p/1.webp") == "https://cdn.test/p/1.webp"
 

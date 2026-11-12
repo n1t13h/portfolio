@@ -81,9 +81,15 @@ class R2Storage:
         )
 
     def presign_get(self, bucket: Bucket, key: str, expires: int) -> str:
+        """A short-lived link that downloads the object (saved as a file, not shown inline)."""
+        filename = key.rsplit("/", 1)[-1]
         return self._signer.generate_presigned_url(
             "get_object",
-            Params={"Bucket": self._name(bucket), "Key": key},
+            Params={
+                "Bucket": self._name(bucket),
+                "Key": key,
+                "ResponseContentDisposition": f'attachment; filename="{filename}"',
+            },
             ExpiresIn=expires,
         )
 

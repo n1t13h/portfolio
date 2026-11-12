@@ -15,7 +15,10 @@ def cached_json(request: Request, payload: Any) -> Response:
         jsonable_encoder(payload, by_alias=True), separators=(",", ":"), ensure_ascii=False
     ).encode()
     etag = f'"{hashlib.sha256(body).hexdigest()[:32]}"'
-    headers = {"ETag": etag, "Cache-Control": CACHE_CONTROL}
+    # Cloudflare ignores `Vary: Origin`, so one cached copy answers every origin. Public data
+    # needs no cookies, so `*` is safe and keeps a copy cached from an Origin-less request
+    # usable by the site's browser. (With an Origin header the CORS middleware echoes it instead.)
+    headers = {"ETag": etag, "Cache-Control": CACHE_CONTROL, "Access-Control-Allow-Origin": "*"}
     sent = [
         t.strip().removeprefix("W/") for t in request.headers.get("if-none-match", "").split(",")
     ]

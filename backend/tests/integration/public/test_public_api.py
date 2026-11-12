@@ -3,8 +3,10 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import event
+from sqlalchemy import event, update
+from sqlalchemy.orm import Session
 
+from app.models import Photo
 from tests.fakes import FakeStorage
 from tests.support.api_helpers import (
     add_chapter,
@@ -171,6 +173,24 @@ def test_download_redirects_to_presigned_url_when_allowed(
     assert resp.headers["cache-control"] == "no-store"
 
 
+def test_unsplash_photo_download_redirects_to_unsplash(
+    admin_client: TestClient, admin_url: str, storage: FakeStorage, db: Session
+) -> None:
+    c = admin_client
+    photo = add_published_photo(c, storage, admin_url, "from-unsplash")
+    c.put(f"{admin_url}/photos/{photo['id']}/allow-download", json={"allow": True})
+    db.execute(update(Photo).where(Photo.id == photo["id"]).values(unsplash_id="I5lzt9e4WMY"))
+    db.commit()
+    c.cookies.clear()
+
+    public = c.get("/photos").json()[0]
+    assert public["unsplashId"] == "I5lzt9e4WMY"
+    resp = c.get(public["downloadUrl"], follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "https://unsplash.com/photos/I5lzt9e4WMY/download?force=true"
+    assert resp.headers["cache-control"] == "no-store"
+
+
 def test_download_404_when_flag_off(
     admin_client: TestClient, admin_url: str, storage: FakeStorage
 ) -> None:
@@ -206,6 +226,17 @@ def test_etag_and_304(client: TestClient, seeded: dict[str, Any]) -> None:
     assert again.status_code == 304
     assert again.content == b""
     assert again.headers["etag"] == etag
+
+
+@pytest.mark.parametrize("path", ["/photos", "/collections"])
+def test_cached_response_is_readable_from_any_origin(
+    client: TestClient, seeded: dict[str, Any], path: str
+) -> None:
+    # Cloudflare ignores `Vary: Origin`, so the copy it caches may come from a request with no
+    # Origin header. That copy must still carry a CORS header the site's browser accepts.
+    resp = client.get(path)
+    assert resp.headers["access-control-allow-origin"] == "*"
+    assert "access-control-allow-credentials" not in resp.headers
 
 
 def test_etag_changes_when_content_changes(
